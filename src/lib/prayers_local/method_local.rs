@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
-pub enum PrayerMethod {
+pub enum MethodLocal {
     /// Muslim World League. Standard Fajr time with an angle of 18°.
     /// Earlier Isha time with an angle of 17°.
     MuslimWorldLeague,
@@ -58,4 +58,24 @@ pub enum PrayerMethod {
     /// Defaults to angles of 0°, should generally be used for making a custom method
     /// and setting your own values.
     Other,
+}
+
+impl From<MethodLocal> for salah::Method {
+    fn from(method: MethodLocal) -> salah::Method {
+        match method {
+            MethodLocal::MuslimWorldLeague => salah::Method::MuslimWorldLeague,
+            MethodLocal::Egyptian => salah::Method::Egyptian,
+            MethodLocal::Karachi => salah::Method::Karachi,
+            MethodLocal::UmmAlQura => salah::Method::UmmAlQura,
+            MethodLocal::Dubai => salah::Method::Dubai,
+            MethodLocal::MoonsightingCommittee => salah::Method::MoonsightingCommittee,
+            MethodLocal::NorthAmerica => salah::Method::NorthAmerica,
+            MethodLocal::Kuwait => salah::Method::Kuwait,
+            MethodLocal::Qatar => salah::Method::Qatar,
+            MethodLocal::Singapore => salah::Method::Singapore,
+            MethodLocal::Tehran => salah::Method::Tehran,
+            MethodLocal::Turkey => salah::Method::Turkey,
+            MethodLocal::Other => salah::Method::Other,
+        }
+    }
 }

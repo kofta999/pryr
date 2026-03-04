@@ -1,9 +1,9 @@
-use std::{fs, path::Path};
+use std::fs;
 
 use anyhow::Result;
 use serde::Deserialize;
 
-use crate::lib::{prayer_madhab::PrayerMadhab, prayer_method::PrayerMethod};
+use crate::lib::prayers_local::{madhab_local::MadhabLocal, method_local::MethodLocal};
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
@@ -24,8 +24,8 @@ impl Config {
 
 #[derive(Deserialize, Debug)]
 pub struct PrayerTime {
-    pub method: PrayerMethod,
-    pub madhab: PrayerMadhab,
+    pub method: MethodLocal,
+    pub madhab: MadhabLocal,
 }
 
 #[derive(Deserialize, Debug)]
@@ -45,6 +45,6 @@ pub struct Options {
 
 #[derive(Deserialize, Debug)]
 pub struct Location {
-    pub long: f32,
-    pub lat: f32,
+    pub long: f64,
+    pub lat: f64,
 }
