@@ -4,18 +4,19 @@ pub enum PrayerLocal {
     Asr,
     Maghrib,
     Isha,
+    Ignored,
 }
 
 impl From<salah::Prayer> for PrayerLocal {
     fn from(prayer: salah::Prayer) -> Self {
         match prayer {
             salah::Prayer::Fajr => PrayerLocal::Fajr,
-            salah::Prayer::Sunrise => PrayerLocal::Dhuhr,
+            salah::Prayer::Sunrise => PrayerLocal::Ignored,
             salah::Prayer::Dhuhr => PrayerLocal::Dhuhr,
             salah::Prayer::Asr => PrayerLocal::Asr,
             salah::Prayer::Maghrib => PrayerLocal::Maghrib,
             salah::Prayer::Isha => PrayerLocal::Isha,
-            salah::Prayer::Qiyam => PrayerLocal::Isha,
+            salah::Prayer::Qiyam => PrayerLocal::Ignored,
             salah::Prayer::FajrTomorrow => PrayerLocal::Fajr,
         }
     }
