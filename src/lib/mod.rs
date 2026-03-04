@@ -26,5 +26,9 @@ pub fn run() {
 
     dbg!(prayers.next());
 
-    dbg!(calc.time_left(prayers.next().into(), prayers.time(prayers.next())));
+    dbg!(
+        calc.time_left(prayers.next().into(), prayers.time(prayers.next()))
+            .unwrap()
+            .num_minutes()
+    );
 }

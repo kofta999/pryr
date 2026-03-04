@@ -1,3 +1,6 @@
+use std::time::Duration;
+
+use chrono::DurationRound;
 use salah::{DateTime, Utc};
 
 use crate::lib::{config::IqamahOffset, prayers_local::prayer_local::PrayerLocal};
@@ -12,17 +15,22 @@ impl IqamahCalculator {
         Self { offsets }
     }
 
-    pub fn time_left(&self, current_prayer: PrayerLocal, prayer_date: DateTime<Utc>) -> i64 {
+    pub fn time_left(
+        &self,
+        current_prayer: PrayerLocal,
+        prayer_date: DateTime<Utc>,
+    ) -> Option<chrono::Duration> {
         let offset = match current_prayer {
             PrayerLocal::Fajr => self.offsets.fajr,
             PrayerLocal::Dhuhr => self.offsets.dhuhr,
             PrayerLocal::Asr => self.offsets.asr,
             PrayerLocal::Maghrib => self.offsets.maghrib,
             PrayerLocal::Isha => self.offsets.isha,
+            PrayerLocal::Ignored => return None,
         };
 
         let iqamah_date = prayer_date + chrono::Duration::minutes(offset.into());
 
-        (iqamah_date - Utc::now()).num_minutes()
+        Some(iqamah_date - Utc::now())
     }
 }
