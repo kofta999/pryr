@@ -1,9 +1,7 @@
-use std::fs;
-
+use crate::prayers_local::{madhab_local::MadhabLocal, method_local::MethodLocal};
 use anyhow::Result;
 use serde::Deserialize;
-
-use crate::lib::prayers_local::{madhab_local::MadhabLocal, method_local::MethodLocal};
+use std::fs;
 
 #[derive(Deserialize, Debug)]
 pub struct Config {

@@ -1,13 +1,8 @@
-use std::time::Duration;
-
-use chrono::DurationRound;
+use crate::{config::IqamahOffset, prayers_local::prayer_local::PrayerLocal};
 use salah::{DateTime, Utc};
 
-use crate::lib::{config::IqamahOffset, prayers_local::prayer_local::PrayerLocal};
-
 pub struct IqamahCalculator {
-    offsets: IqamahOffset, // LOGIC:
-                           // fn: gets current prayer and calculates how much time left before iqamah
+    offsets: IqamahOffset,
 }
 
 impl IqamahCalculator {
@@ -15,11 +10,7 @@ impl IqamahCalculator {
         Self { offsets }
     }
 
-    pub fn time_left(
-        &self,
-        current_prayer: PrayerLocal,
-        prayer_date: DateTime<Utc>,
-    ) -> Option<chrono::Duration> {
+    fn get_offset(&self, current_prayer: PrayerLocal) -> Option<u8> {
         let offset = match current_prayer {
             PrayerLocal::Fajr => self.offsets.fajr,
             PrayerLocal::Dhuhr => self.offsets.dhuhr,
@@ -29,8 +20,23 @@ impl IqamahCalculator {
             PrayerLocal::Ignored => return None,
         };
 
-        let iqamah_date = prayer_date + chrono::Duration::minutes(offset.into());
+        Some(offset)
+    }
 
-        Some(iqamah_date - Utc::now())
+    pub fn get_iqamah_time(
+        &self,
+        current_prayer: PrayerLocal,
+        prayer_date: DateTime<Utc>,
+    ) -> Option<DateTime<Utc>> {
+        let offset = self.get_offset(current_prayer)?;
+        Some(prayer_date + chrono::Duration::minutes(offset.into()))
+    }
+
+    pub fn time_left(
+        &self,
+        current_prayer: PrayerLocal,
+        prayer_date: DateTime<Utc>,
+    ) -> Option<chrono::Duration> {
+        Some(self.get_iqamah_time(current_prayer, prayer_date)? - Utc::now())
     }
 }

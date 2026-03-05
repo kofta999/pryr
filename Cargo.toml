@@ -9,3 +9,11 @@ chrono = "0.4.44"
 salah = "0.7.6"
 serde = { version= "1.0", features = ["derive"] }
 toml = "1.0.3"
+tokio = { version = "1.0", features = ["full"] }
+
+[[bin]]
+name = "daemon"
+path = "src/bin/daemon.rs"
+
+[lib]
+path = "src/lib/mod.rs"
