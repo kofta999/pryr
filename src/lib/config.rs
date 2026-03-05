@@ -6,8 +6,8 @@ use std::fs;
 #[derive(Deserialize, Debug)]
 pub struct Config {
     pub location: Location,
-    #[serde(rename = "prayer-time")]
-    pub prayer_time: PrayerTime,
+    #[serde(rename = "prayer-config")]
+    pub prayer_time: PrayerConfig,
     #[serde(rename = "iqamah-offset")]
     pub iqamah_offset: IqamahOffset,
     pub options: Options,
@@ -21,7 +21,7 @@ impl Config {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct PrayerTime {
+pub struct PrayerConfig {
     pub method: MethodLocal,
     pub madhab: MadhabLocal,
 }
