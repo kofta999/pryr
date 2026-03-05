@@ -3,7 +3,7 @@ use anyhow::Result;
 use serde::Deserialize;
 use std::fs;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Default)]
 pub struct Config {
     pub location: Location,
     #[serde(rename = "prayer-config")]
@@ -26,6 +26,15 @@ pub struct PrayerConfig {
     pub madhab: MadhabLocal,
 }
 
+impl Default for PrayerConfig {
+    fn default() -> Self {
+        Self {
+            method: MethodLocal::Egyptian,
+            madhab: MadhabLocal::Shafi,
+        }
+    }
+}
+
 #[derive(Deserialize, Debug)]
 pub struct IqamahOffset {
     pub fajr: u8,
@@ -35,13 +44,31 @@ pub struct IqamahOffset {
     pub isha: u8,
 }
 
-#[derive(Deserialize, Debug)]
-pub struct Options {
-    #[serde(rename = "lock-screen")]
-    lock_screen: bool,
+impl Default for IqamahOffset {
+    fn default() -> Self {
+        Self {
+            fajr: 20,
+            dhuhr: 15,
+            asr: 15,
+            maghrib: 10,
+            isha: 15,
+        }
+    }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone, Copy)]
+pub struct Options {
+    #[serde(rename = "lock-screen")]
+    pub lock_screen: bool,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self { lock_screen: true }
+    }
+}
+
+#[derive(Deserialize, Debug, Default)]
 pub struct Location {
     pub long: f64,
     pub lat: f64,
