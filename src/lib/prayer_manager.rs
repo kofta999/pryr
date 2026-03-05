@@ -81,11 +81,11 @@ impl PrayerManager {
         Some(prayer_date + chrono::Duration::minutes(offset.into()))
     }
 
-    pub fn time_left(
+    pub fn time_left_for_iqamah(
         &self,
         current_prayer: PrayerLocal,
-        prayer_date: DateTime<Utc>,
+        prayer_time: DateTime<Utc>,
     ) -> Option<chrono::Duration> {
-        Some(self.get_iqamah_time(current_prayer, prayer_date)? - Utc::now())
+        Some(self.get_iqamah_time(current_prayer, prayer_time)? - Utc::now())
     }
 }
