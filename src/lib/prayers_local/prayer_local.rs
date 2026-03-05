@@ -1,4 +1,6 @@
-#[derive(Debug)]
+use std::fmt::Display;
+
+#[derive(Debug, Copy, Clone)]
 pub enum PrayerLocal {
     Fajr,
     Dhuhr,
@@ -20,5 +22,19 @@ impl From<salah::Prayer> for PrayerLocal {
             salah::Prayer::Qiyam => PrayerLocal::Ignored,
             salah::Prayer::FajrTomorrow => PrayerLocal::Fajr,
         }
+    }
+}
+
+impl Display for PrayerLocal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let prayer_name = match self {
+            PrayerLocal::Fajr => salah::Prayer::Fajr.name(),
+            PrayerLocal::Dhuhr => salah::Prayer::Dhuhr.name(),
+            PrayerLocal::Asr => salah::Prayer::Asr.name(),
+            PrayerLocal::Maghrib => salah::Prayer::Maghrib.name(),
+            PrayerLocal::Isha => salah::Prayer::Isha.name(),
+            PrayerLocal::Ignored => "Ignored".to_string(),
+        };
+        write!(f, "{}", prayer_name)
     }
 }
