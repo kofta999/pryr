@@ -18,6 +18,7 @@ async fn main() {
 }
 
 async fn daemon_loop(config: Config) {
+    let options = config.options;
     let mut prayer_manager = PrayerManager::new(config);
 
     let mut state = DaemonState::Calculating;
@@ -67,7 +68,7 @@ async fn daemon_loop(config: Config) {
             DaemonState::WaitingForIqamah(prayer, time) => {
                 let five_min_before_iqamah = time - Duration::from_secs(5 * 60);
                 let two_min_before_iqamah = time - Duration::from_secs(2 * 60);
-                let one_half_min_before_iqamah = time - Duration::from_secs(1);
+                let one_half_min_before_iqamah = time - Duration::from_secs(15 * 6);
 
                 sleep_until_datetime(five_min_before_iqamah).await;
                 Notification::new()
@@ -92,10 +93,19 @@ async fn daemon_loop(config: Config) {
             }
             DaemonState::Lockdown(unlock_time) => {
                 while Utc::now() < unlock_time {
-                    Command::new("loginctl")
-                        .arg("lock-session")
-                        .spawn()
-                        .unwrap();
+                    if options.lock_screen {
+                        Command::new("loginctl")
+                            .arg("lock-session")
+                            .spawn()
+                            .unwrap();
+                    } else {
+                        Notification::new()
+                            .summary("Iqamah has started!!")
+                            .body("Leave your PC and go pray already!")
+                            .show_async()
+                            .await
+                            .unwrap();
+                    }
 
                     tokio::time::sleep(Duration::from_secs(LOCKDOWN_POLL_SECONDS)).await;
                 }
