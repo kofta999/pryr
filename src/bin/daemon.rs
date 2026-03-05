@@ -1,7 +1,8 @@
 use pryr::{
-    config::Config, iqamah_calculator::IqamahCalculator, prayers_local::prayer_local::PrayerLocal,
+    config::Config,
+    prayer_manager::{ActionableEvent, PrayerManager, PrayerName, PrayerTime},
 };
-use salah::{Configuration, Coordinates, DateTime, Local, PrayerSchedule, Utc};
+use salah::{DateTime, Utc};
 use std::time::Duration;
 use tokio::{process::Command, time::Instant};
 
@@ -13,65 +14,49 @@ async fn main() {
 }
 
 async fn daemon_loop(config: Config) {
-    let location = Coordinates::new(config.location.lat, config.location.long);
-    let params = Configuration::with(
-        config.prayer_time.method.into(),
-        config.prayer_time.madhab.into(),
-    );
-    let iqamah_calculator = IqamahCalculator::new(config.iqamah_offset);
+    let mut prayer_manager = PrayerManager::new(config);
 
-    // Needs date then calc
-    let mut prayer_scheduler = PrayerSchedule::new();
-    let prayer_scheduler = prayer_scheduler
-        .for_location(location)
-        .with_configuration(params);
     let mut state = DaemonState::Calculating;
 
     loop {
         state = match state {
             DaemonState::Calculating => {
-                let schedule = prayer_scheduler
-                    .on(Local::now().date_naive())
-                    .calculate()
-                    .unwrap();
-                let next_prayer = schedule.next();
+                let now = Utc::now();
+                let event = prayer_manager.get_next_actionable_event(now);
 
-                DaemonState::WaitingForPrayer(schedule.time(next_prayer), next_prayer.into())
+                match event {
+                    ActionableEvent::WaitForPrayer(name, time) => {
+                        DaemonState::WaitingForPrayer(name, time)
+                    }
+                    ActionableEvent::WaitForIqamah(_, time) => DaemonState::WaitingForIqamah(time),
+                    ActionableEvent::Skip => panic!("Shouldn't happen"),
+                }
             }
-            DaemonState::WaitingForPrayer(time, prayer) => {
+            DaemonState::WaitingForPrayer(prayer, time) => {
                 println!("Current prayer is {prayer:?} at {time}",);
                 println!("Sleeping until prayer");
 
-                let now = Utc::now();
-                if time > now {
-                    if let Ok(duration) = (time - now).to_std() {
-                        println!("Sleeping for {duration:?}");
-                        tokio::time::sleep_until(Instant::now() + duration).await;
-                    }
-                }
+                sleep_until_datetime(time).await;
 
                 // Fire a notification
-
                 println!("Woke up for prayer");
-                DaemonState::WaitingForIqamah(
-                    iqamah_calculator.get_iqamah_time(prayer, time).unwrap(),
-                )
+
+                let iqamah_time = prayer_manager.get_iqamah_time(prayer, time).unwrap();
+
+                DaemonState::WaitingForIqamah(iqamah_time)
             }
             DaemonState::WaitingForIqamah(time) => {
-                let now = Utc::now();
-                if time > now {
-                    if let Ok(duration) = (time - now).to_std() {
-                        println!("Sleeping for {duration:?}");
-                        tokio::time::sleep_until(
-                            Instant::now() + (duration - Duration::from_secs(2 * 60)),
-                        )
-                        .await;
-                    }
-                }
+                let five_min_before_iqamah = time - Duration::from_secs(5 * 60);
+                let two_min_before_iqamah = time - Duration::from_secs(2 * 60);
+
+                sleep_until_datetime(five_min_before_iqamah).await;
+                println!("Noti: 5 min before iqamah, lockdown in 3m");
+
+                sleep_until_datetime(two_min_before_iqamah).await;
+                println!("Noti: 2 min before iqamah, lockdown now");
 
                 println!("Initating lockdown");
-
-                DaemonState::Lockdown(now + Duration::from_secs(10 * 60))
+                DaemonState::Lockdown(time + Duration::from_secs(10 * 60))
             }
             DaemonState::Lockdown(unlock_time) => {
                 Command::new("loginctl")
@@ -89,10 +74,18 @@ async fn daemon_loop(config: Config) {
 
 enum DaemonState {
     Calculating,
-    // PrayerTime, PrayerName
-    WaitingForPrayer(DateTime<Utc>, PrayerLocal),
-    // IqamahTime
-    WaitingForIqamah(DateTime<Utc>),
+    WaitingForPrayer(PrayerName, PrayerTime),
+    WaitingForIqamah(PrayerTime),
     // UnlockTime
     Lockdown(DateTime<Utc>),
+}
+
+async fn sleep_until_datetime(time: DateTime<Utc>) {
+    let now = Utc::now();
+    if time > now {
+        if let Ok(duration) = (time - now).to_std() {
+            println!("Sleeping for {duration:?}");
+            tokio::time::sleep_until(Instant::now() + duration).await;
+        }
+    }
 }
