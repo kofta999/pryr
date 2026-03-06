@@ -2,11 +2,22 @@ use crate::{
     config::{Config, IqamahOffset},
     prayers_local::prayer_local::PrayerLocal,
 };
-use salah::{Configuration, Coordinates, DateTime, PrayerSchedule, Utc};
+use chrono::{DateTime, Utc};
+use salah::{Configuration, Coordinates, PrayerSchedule};
+use serde::{Deserialize, Serialize};
 
 pub type PrayerName = PrayerLocal;
 pub type PrayerTime = DateTime<Utc>;
 pub type IqamahTime = DateTime<Utc>;
+
+#[derive(Default, Clone, Serialize, Deserialize)]
+pub struct PrayerTodaySchedule {
+    pub fajr: PrayerTime,
+    pub dhuhr: PrayerTime,
+    pub asr: PrayerTime,
+    pub maghrib: PrayerTime,
+    pub isha: PrayerTime,
+}
 
 pub enum ActionableEvent {
     WaitForPrayer(PrayerName, PrayerTime),
@@ -20,7 +31,7 @@ pub struct PrayerManager {
 }
 
 impl PrayerManager {
-    pub fn new(config: Config) -> Self {
+    pub fn new(config: &Config) -> Self {
         let location = Coordinates::new(config.location.lat, config.location.long);
         let params = Configuration::with(
             config.prayer_time.method.into(),
@@ -36,6 +47,18 @@ impl PrayerManager {
         }
     }
 
+    pub fn get_schedule(&mut self, now: DateTime<Utc>) -> PrayerTodaySchedule {
+        let today_schedule = self.scheduler.on(now.date_naive()).calculate().unwrap();
+
+        PrayerTodaySchedule {
+            fajr: today_schedule.time(salah::Prayer::Fajr),
+            dhuhr: today_schedule.time(salah::Prayer::Dhuhr),
+            asr: today_schedule.time(salah::Prayer::Asr),
+            maghrib: today_schedule.time(salah::Prayer::Maghrib),
+            isha: today_schedule.time(salah::Prayer::Isha),
+        }
+    }
+
     pub fn get_next_actionable_event(&mut self, now: DateTime<Utc>) -> ActionableEvent {
         let today_schedule = self.scheduler.on(now.date_naive()).calculate().unwrap();
 
@@ -43,7 +66,7 @@ impl PrayerManager {
         let current_prayer_time = today_schedule.time(current_prayer);
         let current_iqamah_time = self
             .get_iqamah_time(current_prayer.into(), current_prayer_time)
-            .unwrap();
+            .unwrap_or_default();
 
         let next_prayer = today_schedule.next();
         let next_prayer_time = today_schedule.time(next_prayer);

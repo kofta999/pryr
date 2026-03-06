@@ -1,11 +1,16 @@
 use pryr::{
     config::Config,
-    prayer_manager::{ActionableEvent, PrayerManager, PrayerName, PrayerTime},
+    daemon::DaemonState,
+    ipc::{DaemonSnapShot, IpcRequest, IpcResponse},
+    prayer_manager::{ActionableEvent, PrayerManager},
     system::System,
 };
-use salah::{DateTime, Utc};
+use salah::Utc;
 use std::time::Duration;
-use tokio::time::Instant;
+use tokio::{
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    sync::{mpsc, watch},
+};
 
 const LOCKDOWN_POLL_SECONDS: u64 = 10;
 const LOCKDOWN_DURATION_SECONDS: u64 = 10 * 60;
@@ -13,13 +18,71 @@ const LOCKDOWN_DURATION_SECONDS: u64 = 10 * 60;
 #[tokio::main]
 async fn main() {
     let config = Config::from_file("test-config.toml").expect("Couldn't parse Configuration File");
+    let (watch_tx, mut watch_rx) = watch::channel(DaemonSnapShot::default());
+    let (mpsc_tx, mut mpsc_rx) = mpsc::channel::<IpcRequest>(10);
 
-    tokio::spawn(daemon_loop(config)).await.unwrap();
+    let h1 = tokio::spawn(daemon_loop(config, watch_tx, mpsc_rx));
+    let h2 = tokio::spawn(ipc_server_loop(watch_rx, mpsc_tx));
+
+    h1.await.unwrap();
+    h2.await.unwrap();
 }
 
-async fn daemon_loop(config: Config) {
-    let options = config.options;
-    let mut prayer_manager = PrayerManager::new(config);
+async fn ipc_server_loop(
+    mut watch_rx: watch::Receiver<DaemonSnapShot>,
+    mpsc_tx: mpsc::Sender<IpcRequest>,
+) {
+    let socket_path = "/run/user/1000/pryr.sock";
+
+    // Ignore if socket doesn't exist
+    let _ = tokio::fs::remove_file(socket_path).await;
+
+    let socket = tokio::net::UnixListener::bind(socket_path).unwrap();
+
+    loop {
+        let (mut stream, _) = socket.accept().await.unwrap();
+        let watch_rx_clone = watch_rx.clone();
+        let mpsc_tx_clone = mpsc_tx.clone();
+
+        tokio::spawn(async move {
+            let (read_half, mut write_half) = stream.split();
+            let mut buf_reader = BufReader::new(read_half);
+            let mut s = String::new();
+            buf_reader.read_line(&mut s).await.unwrap();
+
+            let request: IpcRequest = serde_json::from_str(&s).unwrap();
+
+            let response: IpcResponse = match request {
+                IpcRequest::GetStatus => {
+                    let state = watch_rx_clone.borrow();
+                    IpcResponse::CurrentState(state.current_state)
+                }
+                IpcRequest::GetTodaySchedule => {
+                    let schedule = watch_rx_clone.borrow().daily_schedule.clone();
+                    IpcResponse::DailySchedule(schedule)
+                }
+                IpcRequest::ReloadConfig => {
+                    mpsc_tx_clone.send(IpcRequest::ReloadConfig).await.unwrap();
+                    IpcResponse::Success
+                }
+            };
+
+            let response_string = serde_json::to_string(&response).unwrap();
+            write_half
+                .write_all(response_string.as_bytes())
+                .await
+                .unwrap();
+            write_half.flush().await.unwrap();
+        });
+    }
+}
+
+async fn daemon_loop(
+    mut config: Config,
+    watch_tx: watch::Sender<DaemonSnapShot>,
+    mut mpsc_rx: mpsc::Receiver<IpcRequest>,
+) {
+    let mut prayer_manager = PrayerManager::new(&config);
 
     let mut state = DaemonState::Calculating;
 
@@ -29,7 +92,7 @@ async fn daemon_loop(config: Config) {
                 let now = Utc::now();
                 let event = prayer_manager.get_next_actionable_event(now);
 
-                match event {
+                let next_event = match event {
                     ActionableEvent::WaitForPrayer(name, time) => {
                         DaemonState::WaitingForPrayer(name, time)
                     }
@@ -37,40 +100,68 @@ async fn daemon_loop(config: Config) {
                         DaemonState::WaitingForIqamah(name, time)
                     }
                     ActionableEvent::Skip => panic!("Shouldn't happen"),
-                }
+                };
+
+                watch_tx
+                    .send(DaemonSnapShot {
+                        current_state: next_event,
+                        daily_schedule: prayer_manager.get_schedule(now),
+                        offsets: config.iqamah_offset,
+                    })
+                    .unwrap();
+
+                next_event
             }
             DaemonState::WaitingForPrayer(prayer, time) => {
                 println!("Next prayer is {prayer:?} at {time}",);
                 println!("Sleeping until prayer");
 
-                sleep_until_datetime(time).await;
+                tokio::select! {
+                    biased;
+                    Some(IpcRequest::ReloadConfig) = mpsc_rx.recv() => {
+                        println!("Reloading config...");
+                        (prayer_manager, config) = System::reload();
+                        DaemonState::Calculating
+                    },
+                    _ = System::sleep_until_datetime(time) => {
 
-                // Fire a notification
-                println!("Woke up for prayer");
+                        // Fire a notification
+                        println!("Woke up for prayer");
 
-                System::notify(
-                    &format!("Prayer {prayer} has started"),
-                    &format!(
-                        "Iqamah in {} minutes",
-                        prayer_manager
-                            .time_left_for_iqamah(prayer, time)
-                            .unwrap()
-                            .num_minutes()
-                    ),
-                )
-                .await
-                .unwrap();
+                        System::notify(
+                            &format!("Prayer {prayer} has started"),
+                            &format!(
+                                "Iqamah in {} minutes",
+                                prayer_manager
+                                    .time_left_for_iqamah(prayer, time)
+                                    .unwrap()
+                                    .num_minutes()
+                            ),
+                        )
+                        .await
+                        .unwrap();
 
-                let iqamah_time = prayer_manager.get_iqamah_time(prayer, time).unwrap();
+                        let iqamah_time = prayer_manager.get_iqamah_time(prayer, time).unwrap();
 
-                DaemonState::WaitingForIqamah(prayer, iqamah_time)
+                        let next_event = DaemonState::WaitingForIqamah(prayer, iqamah_time);
+
+                        watch_tx.send(DaemonSnapShot {
+                            current_state: next_event,
+                            daily_schedule: prayer_manager.get_schedule(Utc::now()),
+                            offsets: config.iqamah_offset,
+                        }).unwrap();
+
+                        next_event
+                    },
+                }
             }
             DaemonState::WaitingForIqamah(prayer, time) => {
                 let five_min_before_iqamah = time - Duration::from_secs(5 * 60);
                 let two_min_before_iqamah = time - Duration::from_secs(2 * 60);
                 let one_half_min_before_iqamah = time - Duration::from_secs(15 * 6);
 
-                sleep_until_datetime(five_min_before_iqamah).await;
+                // TODO: Add config reloading in this section
+                System::sleep_until_datetime(five_min_before_iqamah).await;
 
                 System::notify(
                     &format!("{prayer} Iqamah in 5 minutes"),
@@ -79,7 +170,7 @@ async fn daemon_loop(config: Config) {
                 .await
                 .unwrap();
 
-                sleep_until_datetime(two_min_before_iqamah).await;
+                System::sleep_until_datetime(two_min_before_iqamah).await;
 
                 System::notify(
                     &format!("{prayer} Iqamah in 2 minutes"),
@@ -88,14 +179,25 @@ async fn daemon_loop(config: Config) {
                 .await
                 .unwrap();
 
-                sleep_until_datetime(one_half_min_before_iqamah).await;
+                System::sleep_until_datetime(one_half_min_before_iqamah).await;
                 println!("Initiating lockdown");
 
-                DaemonState::Lockdown(time + Duration::from_secs(LOCKDOWN_DURATION_SECONDS))
+                let next_event =
+                    DaemonState::Lockdown(time + Duration::from_secs(LOCKDOWN_DURATION_SECONDS));
+
+                watch_tx
+                    .send(DaemonSnapShot {
+                        current_state: next_event,
+                        daily_schedule: prayer_manager.get_schedule(Utc::now()),
+                        offsets: config.iqamah_offset,
+                    })
+                    .unwrap();
+
+                next_event
             }
             DaemonState::Lockdown(unlock_time) => {
                 while Utc::now() < unlock_time {
-                    if options.lock_screen {
+                    if config.clone().options.lock_screen {
                         System::lock_screen().await.unwrap();
                     } else {
                         System::notify(
@@ -111,26 +213,18 @@ async fn daemon_loop(config: Config) {
 
                 println!("Lockdown finished");
 
-                DaemonState::Calculating
+                let next_event = DaemonState::Calculating;
+
+                watch_tx
+                    .send(DaemonSnapShot {
+                        current_state: next_event,
+                        daily_schedule: prayer_manager.get_schedule(Utc::now()),
+                        offsets: config.iqamah_offset,
+                    })
+                    .unwrap();
+
+                next_event
             }
-        }
-    }
-}
-
-enum DaemonState {
-    Calculating,
-    WaitingForPrayer(PrayerName, PrayerTime),
-    WaitingForIqamah(PrayerName, PrayerTime),
-    // UnlockTime
-    Lockdown(DateTime<Utc>),
-}
-
-async fn sleep_until_datetime(time: DateTime<Utc>) {
-    let now = Utc::now();
-    if time > now {
-        if let Ok(duration) = (time - now).to_std() {
-            println!("Sleeping for {duration:?}");
-            tokio::time::sleep_until(Instant::now() + duration).await;
         }
     }
 }

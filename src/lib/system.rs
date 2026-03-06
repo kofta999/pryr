@@ -1,5 +1,8 @@
 use notify_rust::Notification;
-use tokio::process::Command;
+use salah::{DateTime, Utc};
+use tokio::{process::Command, time::Instant};
+
+use crate::{config::Config, prayer_manager::PrayerManager};
 
 pub struct System {}
 
@@ -23,5 +26,23 @@ impl System {
             .await?;
 
         anyhow::Ok(())
+    }
+
+    pub async fn sleep_until_datetime(time: DateTime<Utc>) {
+        let now = Utc::now();
+        if time > now {
+            if let Ok(duration) = (time - now).to_std() {
+                println!("Sleeping for {duration:?}");
+                tokio::time::sleep_until(Instant::now() + duration).await;
+            }
+        }
+    }
+
+    pub fn reload() -> (PrayerManager, Config) {
+        let config =
+            Config::from_file("test-config.toml").expect("Couldn't parse Configuration File");
+        let prayer_manager = PrayerManager::new(&config);
+
+        (prayer_manager, config)
     }
 }
