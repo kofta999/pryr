@@ -1,11 +1,11 @@
-use notify_rust::Notification;
 use pryr::{
     config::Config,
     prayer_manager::{ActionableEvent, PrayerManager, PrayerName, PrayerTime},
+    system::System,
 };
 use salah::{DateTime, Utc};
 use std::time::Duration;
-use tokio::{process::Command, time::Instant};
+use tokio::time::Instant;
 
 const LOCKDOWN_POLL_SECONDS: u64 = 10;
 const LOCKDOWN_DURATION_SECONDS: u64 = 10 * 60;
@@ -48,18 +48,18 @@ async fn daemon_loop(config: Config) {
                 // Fire a notification
                 println!("Woke up for prayer");
 
-                Notification::new()
-                    .summary(&format!("Prayer {prayer} has started"))
-                    .body(&format!(
+                System::notify(
+                    &format!("Prayer {prayer} has started"),
+                    &format!(
                         "Iqamah in {} minutes",
                         prayer_manager
                             .time_left_for_iqamah(prayer, time)
                             .unwrap()
                             .num_minutes()
-                    ))
-                    .show_async()
-                    .await
-                    .unwrap();
+                    ),
+                )
+                .await
+                .unwrap();
 
                 let iqamah_time = prayer_manager.get_iqamah_time(prayer, time).unwrap();
 
@@ -71,20 +71,22 @@ async fn daemon_loop(config: Config) {
                 let one_half_min_before_iqamah = time - Duration::from_secs(15 * 6);
 
                 sleep_until_datetime(five_min_before_iqamah).await;
-                Notification::new()
-                    .summary(&format!("{prayer} Iqamah in 5 minutes"))
-                    .body("Get ready! Lockdown in 3 minutes!")
-                    .show_async()
-                    .await
-                    .unwrap();
+
+                System::notify(
+                    &format!("{prayer} Iqamah in 5 minutes"),
+                    "Get ready! Lockdown in 3 minutes!",
+                )
+                .await
+                .unwrap();
 
                 sleep_until_datetime(two_min_before_iqamah).await;
-                Notification::new()
-                    .summary(&format!("{prayer} Iqamah in 2 minutes"))
-                    .body("Get ready! Lockdown in 30 seconds!")
-                    .show_async()
-                    .await
-                    .unwrap();
+
+                System::notify(
+                    &format!("{prayer} Iqamah in 2 minutes"),
+                    "Get ready! Lockdown in 30 seconds!",
+                )
+                .await
+                .unwrap();
 
                 sleep_until_datetime(one_half_min_before_iqamah).await;
                 println!("Initiating lockdown");
@@ -94,17 +96,14 @@ async fn daemon_loop(config: Config) {
             DaemonState::Lockdown(unlock_time) => {
                 while Utc::now() < unlock_time {
                     if options.lock_screen {
-                        Command::new("loginctl")
-                            .arg("lock-session")
-                            .spawn()
-                            .unwrap();
+                        System::lock_screen().await.unwrap();
                     } else {
-                        Notification::new()
-                            .summary("Iqamah has started!!")
-                            .body("Leave your PC and go pray already!")
-                            .show_async()
-                            .await
-                            .unwrap();
+                        System::notify(
+                            "Iqamah has started!!",
+                            "Leave your PC and go pray already!",
+                        )
+                        .await
+                        .unwrap();
                     }
 
                     tokio::time::sleep(Duration::from_secs(LOCKDOWN_POLL_SECONDS)).await;
