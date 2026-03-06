@@ -1,9 +1,9 @@
 use crate::prayers_local::{madhab_local::MadhabLocal, method_local::MethodLocal};
 use anyhow::Result;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
 
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug, Default, Clone)]
 pub struct Config {
     pub location: Location,
     #[serde(rename = "prayer-config")]
@@ -20,7 +20,7 @@ impl Config {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 pub struct PrayerConfig {
     pub method: MethodLocal,
     pub madhab: MadhabLocal,
@@ -35,7 +35,7 @@ impl Default for PrayerConfig {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct IqamahOffset {
     pub fajr: u8,
     pub dhuhr: u8,
@@ -68,7 +68,7 @@ impl Default for Options {
     }
 }
 
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug, Default, Clone)]
 pub struct Location {
     pub long: f64,
     pub lat: f64,

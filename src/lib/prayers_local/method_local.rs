@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 pub enum MethodLocal {
     /// Muslim World League. Standard Fajr time with an angle of 18°.
     /// Earlier Isha time with an angle of 17°.
