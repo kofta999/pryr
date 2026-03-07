@@ -235,7 +235,7 @@ async fn daemon_loop(
             }
             DaemonState::Lockdown(unlock_time) => {
                 while Utc::now() < unlock_time {
-                    if config.clone().options.lock_screen {
+                    if config.options.lock_screen {
                         system::lock_screen().await?;
                     } else {
                         system::notify(
