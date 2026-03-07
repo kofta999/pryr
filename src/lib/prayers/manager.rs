@@ -73,6 +73,11 @@ impl PrayerManager {
         let next_prayer = today_schedule.next();
         let next_prayer_time = today_schedule.time(next_prayer);
 
+        let tmrw_fajr_time = today_schedule.time(salah::Prayer::FajrTomorrow);
+        if matches!(next_prayer.into(), PrayerLocal::Ignored) && now < tmrw_fajr_time {
+            return ActionableEvent::WaitForPrayer(PrayerLocal::Fajr, tmrw_fajr_time);
+        }
+
         if now > current_prayer_time && now < current_iqamah_time {
             return ActionableEvent::WaitForIqamah(current_prayer.into(), current_iqamah_time);
         }
