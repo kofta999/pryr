@@ -1,8 +1,8 @@
 # pryr 🕌
 
-> A blazing-fast, uncompromising Islamic prayer time daemon and screen locker for Linux.
+> A blazing-fast, uncompromising Islamic prayer time daemon and screen locker for Linux and Windows.
 
-Notifications are too easy to dismiss when you're deep in a coding session. **`pryr` doesn't just remind you to pray; it forces you.** Built entirely in Rust, `pryr` runs silently in the background as a systemd daemon. It calculates daily prayer times, sends escalating desktop warnings, and when Iqamah hits, it ruthlessly locks your Wayland/X11 session using `loginctl` for a configurable duration. You cannot dismiss it. You can only go pray.
+Notifications are too easy to dismiss when you're deep in a coding session. **`pryr` doesn't just remind you to pray; it forces you.** Built entirely in Rust, `pryr` runs silently in the background. It calculates daily prayer times, sends escalating desktop warnings, and when Iqamah hits, it ruthlessly locks your session for a configurable duration. You cannot dismiss it. You can only go pray.
 
 ---
 
@@ -10,15 +10,17 @@ Notifications are too easy to dismiss when you're deep in a coding session. **`p
 
 - **Uncompromising Lockdown:** Stubbornly locks your screen during Iqamah. If you unlock it early, it instantly locks it again until the duration is over.
 - **Escalating Warnings:** Native desktop notifications at T-minus 5 minutes and 2 minutes before lockdown.
-- **Zero-Overhead IPC:** A lightning-fast CLI (`pryr`) communicates with the background daemon (`pryrd`) via Unix Domain Sockets.
+- **Zero-Overhead IPC:** A lightning-fast CLI (`pryr`) communicates with the background daemon (`pryrd`) via Unix Domain Sockets (Linux) or Named Pipes (Windows).
 - **Dynamic Configuration:** Adjust prayer calculation methods, Madhab, and Iqamah offsets via a simple TOML file. Hot-reload the config without dropping the daemon.
-- **Wayland Native:** Uses `loginctl` to lock the session, making it perfectly compatible with modern Wayland compositors (Hyprland, Sway) and X11.
+- **Native Screen Locking:** Uses `loginctl` on Linux (Wayland/X11) and the native `LockWorkStation` API on Windows to cleanly and forcefully lock your device.
 
 ---
 
 ### 🚀 Installation
 
-`pryr` is distributed as a pre-compiled binary for Linux (x86_64). You don't need Rust installed to run it.
+`pryr` is distributed as pre-compiled binaries for Linux and Windows (x86_64). You don't need Rust installed to run it.
+
+#### Linux
 
 Run the following command to download the latest release, add it to your `$PATH`, and automatically set up the systemd background service:
 
@@ -28,6 +30,15 @@ curl -fsSL https://raw.githubusercontent.com/kofta999/pryr/master/install.sh | b
 ```
 
 _(Note: Requires `systemd` and `loginctl` to be present on your system)._
+
+#### Windows
+
+Open PowerShell and run the following command to download the release, add it to your `PATH`, and register the silent logon background task via the Windows Task Scheduler:
+
+```powershell
+irm https://raw.githubusercontent.com/kofta999/pryr/master/install.ps1 | iex
+
+```
 
 ---
 
@@ -66,7 +77,10 @@ pryr reload-config
 
 ### ⚙️ Configuration
 
-On first run, `pryr` automatically generates a default configuration file at `~/.config/pryr/config.toml`.
+On first run, `pryr` automatically generates a default configuration file based on your operating system:
+
+- **Linux:** `~/.config/pryr/config.toml`
+- **Windows:** `%APPDATA%\pryr\config.toml` _(usually `C:\Users\YourName\AppData\Roaming\pryr\config.toml`)_
 
 By default, it uses the Egyptian General Authority of Survey method, but you can customize everything from your exact coordinates to the lockdown duration.
 
@@ -100,9 +114,9 @@ After modifying the file, simply run `pryr reload-config` to instantly apply the
 
 `pryr` is built with a decoupled Client-Server architecture to ensure maximum performance and zero missed events:
 
-1. **`pryrd` (The Heart):** A Tokio-powered asynchronous state machine. It handles time math, schedules system sleeps, executes `loginctl` lockdowns, and broadcasts state changes via an `mpsc` watch channel.
-2. **Unix Domain Sockets (The Nerves):** `pryrd` binds to `/run/user/$UID/pryr.sock`. It listens for Newline-Delimited JSON requests and responds instantly using zero-cost cached data.
-3. **`pryr` (The Face):** A lightweight, synchronous CLI built with `clap`. It connects to the socket, sends remote procedure calls, formats the JSON response with `owo-colors`, and exits in milliseconds.
+1. **`pryrd` (The Heart):** A Tokio-powered asynchronous state machine. It handles time math, schedules system sleeps, executes lockdowns, and broadcasts state changes via an `mpsc` watch channel. It runs invisibly via `systemd` (Linux) or Task Scheduler (Windows).
+2. **The Nerves:** `pryrd` binds to `/run/user/$UID/pryr.sock` (Linux) or `\\.\pipe\pryr-ipc` (Windows). It listens for Newline-Delimited JSON requests and responds instantly using zero-cost cached data.
+3. **`pryr` (The Face):** A lightweight, synchronous CLI built with `clap`. It connects to the socket/pipe, sends remote procedure calls, formats the JSON response with `owo-colors`, and exits in milliseconds.
 
 ---
 
@@ -110,4 +124,4 @@ After modifying the file, simply run `pryr reload-config` to instantly apply the
 
 Developed by **Mostafa Mahmoud**.
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](https://www.google.com/search?q=LICENSE) file for details.
