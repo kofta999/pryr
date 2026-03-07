@@ -16,6 +16,13 @@ directories = "6.0.0"
 clap = { version = "4.5.60", features = ["derive"] }
 owo-colors = "4.3.0"
 
+[target.'cfg(windows)'.dependencies.windows]
+version = "0.61"
+features = [
+    "Win32_System_Shutdown",
+]
+
+
 [[bin]]
 name = "pryrd"
 path = "src/bin/daemon.rs"

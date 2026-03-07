@@ -1,10 +1,10 @@
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 use owo_colors::OwoColorize;
-use pryr::ipc::IpcResponse;
-use pryr::{ipc::IpcRequest, system::get_socket_path};
+use pryr::ipc::IpcRequest;
+use pryr::ipc::{IpcResponse, connect_ipc};
+use std::io::Write;
 use std::io::{BufRead, BufReader};
-use std::{io::Write, os::unix::net::UnixStream};
 
 #[derive(Parser)]
 #[command(version, about)]
@@ -29,10 +29,7 @@ fn main() -> anyhow::Result<()> {
         Commands::ReloadConfig => IpcRequest::ReloadConfig,
     };
 
-    let stream_path =
-        get_socket_path().ok_or_else(|| anyhow::anyhow!("Could not determine socket path"))?;
-    let mut stream = UnixStream::connect(stream_path)
-        .context("Could not connect to daemon. Is pryrd running?")?;
+    let mut stream = connect_ipc().context("Could not connect to daemon. Is pryrd running?")?;
 
     let request_string = serde_json::to_string(&request)? + "\n";
     stream.write_all(request_string.as_bytes())?;

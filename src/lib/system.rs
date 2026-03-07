@@ -1,29 +1,46 @@
-use std::path::PathBuf;
-
 use crate::{config::Config, prayers::PrayerManager};
 use directories::BaseDirs;
 use notify_rust::Notification;
 use salah::{DateTime, Utc};
-use tokio::{process::Command, time::Instant};
+use std::path::PathBuf;
+use tokio::time::Instant;
 
 pub async fn notify(title: &str, body: &str) -> anyhow::Result<()> {
+    #[cfg(target_os = "linux")]
     Notification::new()
         .summary(title)
         .body(body)
+        .appname("pryr")
         .show_async()
         .await?;
+
+    #[cfg(target_os = "windows")]
+    Notification::new()
+        .summary(title)
+        .body(body)
+        .appname("pryr")
+        .show()?;
 
     anyhow::Ok(())
 }
 
 pub async fn lock_screen() -> anyhow::Result<()> {
     #[cfg(target_os = "linux")]
-    Command::new("loginctl")
-        .arg("lock-session")
-        .spawn()?
-        .wait()
-        .await?;
+    {
+        use tokio::process::Command;
+        Command::new("loginctl")
+            .arg("lock-session")
+            .spawn()?
+            .wait()
+            .await?;
+    }
 
+    #[cfg(target_os = "windows")]
+    unsafe {
+        use windows::Win32::System::Shutdown;
+
+        Shutdown::LockWorkStation()?;
+    }
     anyhow::Ok(())
 }
 
@@ -32,7 +49,6 @@ pub async fn sleep_until_datetime(time: DateTime<Utc>) {
     if time > now
         && let Ok(duration) = (time - now).to_std()
     {
-        println!("Sleeping for {duration:?}");
         tokio::time::sleep_until(Instant::now() + duration).await;
     }
 }

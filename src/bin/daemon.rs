@@ -1,10 +1,9 @@
-use anyhow::anyhow;
 use pryr::{
     config::Config,
     daemon::{DaemonSnapShot, DaemonState},
-    ipc::{IpcRequest, IpcResponse},
+    ipc::{IpcListener, IpcRequest, IpcResponse},
     prayers::{ActionableEvent, PrayerManager},
-    system::{self, get_config_path, get_socket_path},
+    system::{self, get_config_path},
 };
 use salah::Utc;
 use std::time::Duration;
@@ -81,20 +80,15 @@ async fn ipc_server_loop(
     watch_rx: watch::Receiver<DaemonSnapShot>,
     mpsc_tx: mpsc::Sender<IpcRequest>,
 ) -> anyhow::Result<()> {
-    let socket_path = get_socket_path().ok_or(anyhow!("Socket path does not exist"))?;
-
-    // Ignore error if socket doesn't exist
-    let _ = tokio::fs::remove_file(&socket_path).await;
-
-    let socket = tokio::net::UnixListener::bind(socket_path)?;
+    let listener = IpcListener::bind().await?;
 
     loop {
-        let (mut stream, _) = socket.accept().await?;
+        let stream = listener.accept().await?;
         let watch_rx_clone = watch_rx.clone();
         let mpsc_tx_clone = mpsc_tx.clone();
 
         tokio::spawn(async move {
-            let (read_half, mut write_half) = stream.split();
+            let (read_half, mut write_half) = tokio::io::split(stream);
             let mut buf_reader = BufReader::new(read_half);
             let mut s = String::new();
             buf_reader.read_line(&mut s).await?;
@@ -200,6 +194,7 @@ async fn daemon_loop(
             }
             // Triggers 5min before iqamah
             DaemonState::IqamahWarning(prayer, iqamah_time) => {
+                println!("[INFO] Sleeping until 5 minuts before iqamah");
                 let five_min_before_iqamah = iqamah_time - FIVE_MINUTES_DURATION;
 
                 tokio::select! {
