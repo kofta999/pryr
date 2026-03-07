@@ -1,9 +1,9 @@
 use crate::prayers_local::{madhab_local::MadhabLocal, method_local::MethodLocal};
-use anyhow::Result;
+use anyhow::{Ok, Result};
 use serde::{Deserialize, Serialize};
-use std::fs;
+use std::{fs, path::PathBuf};
 
-#[derive(Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Config {
     pub location: Location,
     #[serde(rename = "prayer-config")]
@@ -14,13 +14,20 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn from_file(path: &str) -> Result<Config> {
+    pub fn from_file(path: PathBuf) -> Result<Config> {
         let content = fs::read_to_string(path)?;
         Ok(toml::from_str(&content)?)
     }
+
+    pub fn save(&self, path: PathBuf) -> Result<()> {
+        let contents = toml::to_string(self)?;
+        fs::write(path, contents)?;
+
+        Ok(())
+    }
 }
 
-#[derive(Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct PrayerConfig {
     pub method: MethodLocal,
     pub madhab: MadhabLocal,
@@ -56,7 +63,7 @@ impl Default for IqamahOffset {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct Options {
     #[serde(rename = "lock-screen")]
     pub lock_screen: bool,
@@ -68,7 +75,7 @@ impl Default for Options {
     }
 }
 
-#[derive(Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Location {
     pub long: f64,
     pub lat: f64,

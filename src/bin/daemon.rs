@@ -1,13 +1,15 @@
+use directories::BaseDirs;
 use pryr::{
     config::Config,
     daemon::{DaemonSnapShot, DaemonState},
     ipc::{IpcRequest, IpcResponse},
     prayer_manager::{ActionableEvent, PrayerManager},
-    system::System,
+    system::{self, get_config_path},
 };
 use salah::Utc;
 use std::time::Duration;
 use tokio::{
+    fs::create_dir_all,
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     sync::{mpsc, watch},
 };
@@ -20,15 +22,27 @@ const TWO_MINUTES_DURATION: Duration = Duration::from_secs(120);
 
 #[tokio::main]
 async fn main() {
-    let config = Config::from_file("test-config.toml").expect("Couldn't parse Configuration File");
-    let (watch_tx, watch_rx) = watch::channel(DaemonSnapShot::default());
-    let (mpsc_tx, mpsc_rx) = mpsc::channel::<IpcRequest>(10);
+    if let Some(path) = get_config_path() {
+        let config = if path.exists() {
+            Config::from_file(path).expect("Couldn't parse Configuration File")
+        } else {
+            let config = Config::default();
+            create_dir_all(path.parent().expect("Path should end in config.toml"))
+                .await
+                .unwrap();
+            config.save(path).unwrap();
+            config
+        };
 
-    let h1 = tokio::spawn(daemon_loop(config, watch_tx, mpsc_rx));
-    let h2 = tokio::spawn(ipc_server_loop(watch_rx, mpsc_tx));
+        let (watch_tx, watch_rx) = watch::channel(DaemonSnapShot::default());
+        let (mpsc_tx, mpsc_rx) = mpsc::channel::<IpcRequest>(10);
 
-    h1.await.unwrap().unwrap();
-    h2.await.unwrap().unwrap();
+        let h1 = tokio::spawn(daemon_loop(config, watch_tx, mpsc_rx));
+        let h2 = tokio::spawn(ipc_server_loop(watch_rx, mpsc_tx));
+
+        h1.await.unwrap().unwrap();
+        h2.await.unwrap().unwrap();
+    }
 }
 
 async fn ipc_server_loop(
@@ -120,13 +134,13 @@ async fn daemon_loop(
                     biased;
                     Some(IpcRequest::ReloadConfig) = mpsc_rx.recv() => {
                         println!("Reloading config...");
-                        (prayer_manager, config) = System::reload();
+                        (prayer_manager, config) = system::reload();
                         DaemonState::Calculating
                     },
-                    _ = System::sleep_until_datetime(time) => {
+                    _ = system::sleep_until_datetime(time) => {
                         println!("Woke up for prayer");
 
-                        System::notify(
+                        system::notify(
                             &format!("Prayer {prayer} has started"),
                             &format!(
                                 "Iqamah in {} minutes",
@@ -159,12 +173,12 @@ async fn daemon_loop(
                     biased;
                     Some(IpcRequest::ReloadConfig) = mpsc_rx.recv() => {
                         println!("Reloading config...");
-                        (prayer_manager, config) = System::reload();
+                        (prayer_manager, config) = system::reload();
                         DaemonState::Calculating
                     },
 
-                    _ =  System::sleep_until_datetime(five_min_before_iqamah) => {
-                        System::notify(
+                    _ =  system::sleep_until_datetime(five_min_before_iqamah) => {
+                        system::notify(
                             &format!("{prayer} Iqamah in 5 minutes"),
                             "Get ready! Lockdown in 3 minutes!",
                         )
@@ -189,13 +203,13 @@ async fn daemon_loop(
                     biased;
                     Some(IpcRequest::ReloadConfig) = mpsc_rx.recv() => {
                         println!("Reloading config...");
-                        (prayer_manager, config) = System::reload();
+                        (prayer_manager, config) = system::reload();
                         DaemonState::Calculating
                     },
 
-                    _ = System::sleep_until_datetime(two_min_before_iqamah) => {
+                    _ = system::sleep_until_datetime(two_min_before_iqamah) => {
 
-                        System::notify(
+                        system::notify(
                             &format!("{prayer} Iqamah in 2 minutes"),
                             "Get ready! Lockdown in 30 seconds!",
                         )
@@ -221,9 +235,9 @@ async fn daemon_loop(
             DaemonState::Lockdown(unlock_time) => {
                 while Utc::now() < unlock_time {
                     if config.clone().options.lock_screen {
-                        System::lock_screen().await?;
+                        system::lock_screen().await?;
                     } else {
-                        System::notify(
+                        system::notify(
                             "Iqamah has started!!",
                             "Leave your PC and go pray already!",
                         )
