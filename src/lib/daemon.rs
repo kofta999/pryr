@@ -12,7 +12,8 @@ pub enum DaemonState {
     #[default]
     Calculating,
     WaitingForPrayer(PrayerName, PrayerTime),
-    WaitingForIqamah(PrayerName, PrayerTime),
+    IqamahWarning(PrayerName, PrayerTime),
+    LockdownWarning(PrayerName, PrayerTime),
     Lockdown(UnlockTime),
 }
 

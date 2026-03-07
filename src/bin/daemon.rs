@@ -5,15 +5,18 @@ use pryr::{
     prayer_manager::{ActionableEvent, PrayerManager},
     system::System,
 };
-use salah::{Local, Utc};
+use salah::Utc;
 use std::time::Duration;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     sync::{mpsc, watch},
 };
 
-const LOCKDOWN_POLL_SECONDS: u64 = 10;
-const LOCKDOWN_DURATION_SECONDS: u64 = 10 * 60;
+const LOCKDOWN_POLL_DURATION: Duration = Duration::from_secs(10);
+const LOCKDOWN_DURATION: Duration = Duration::from_secs(10 * 60);
+const FIVE_MINUTES_DURATION: Duration = Duration::from_secs(300);
+const THREE_MINUTES_DURATION: Duration = Duration::from_secs(180);
+const TWO_MINUTES_DURATION: Duration = Duration::from_secs(120);
 
 #[tokio::main]
 async fn main() {
@@ -96,7 +99,7 @@ async fn daemon_loop(
                         DaemonState::WaitingForPrayer(name, time)
                     }
                     ActionableEvent::WaitForIqamah(name, time) => {
-                        DaemonState::WaitingForIqamah(name, time)
+                        DaemonState::IqamahWarning(name, time)
                     }
                     ActionableEvent::Skip => panic!("Shouldn't happen"),
                 };
@@ -136,7 +139,7 @@ async fn daemon_loop(
                         .await?;
 
                         let iqamah_time = prayer_manager.get_iqamah_time(prayer, time).unwrap();
-                        let next_event = DaemonState::WaitingForIqamah(prayer, iqamah_time);
+                        let next_event = DaemonState::IqamahWarning(prayer, iqamah_time);
 
                         watch_tx.send(DaemonSnapShot::new(
                             next_event,
@@ -148,60 +151,86 @@ async fn daemon_loop(
                     },
                 }
             }
-            DaemonState::WaitingForIqamah(prayer, time) => {
-                let five_min_before_iqamah = time - Duration::from_secs(5 * 60);
-                let two_min_before_iqamah = time - Duration::from_secs(2 * 60);
-                let one_half_min_before_iqamah = time - Duration::from_secs(15 * 6);
+            // Triggers 5min before iqamah
+            DaemonState::IqamahWarning(prayer, iqamah_time) => {
+                let five_min_before_iqamah = iqamah_time - FIVE_MINUTES_DURATION;
 
-                // TODO: Add config reloading in this section
-                System::sleep_until_datetime(five_min_before_iqamah).await;
+                tokio::select! {
+                    biased;
+                    Some(IpcRequest::ReloadConfig) = mpsc_rx.recv() => {
+                        println!("Reloading config...");
+                        (prayer_manager, config) = System::reload();
+                        DaemonState::Calculating
+                    },
 
-                System::notify(
-                    &format!("{prayer} Iqamah in 5 minutes"),
-                    "Get ready! Lockdown in 3 minutes!",
-                )
-                .await
-                .unwrap();
+                    _ =  System::sleep_until_datetime(five_min_before_iqamah) => {
+                        System::notify(
+                            &format!("{prayer} Iqamah in 5 minutes"),
+                            "Get ready! Lockdown in 3 minutes!",
+                        )
+                        .await?;
 
-                System::sleep_until_datetime(two_min_before_iqamah).await;
+                        let two_min_before_iqamah = five_min_before_iqamah + THREE_MINUTES_DURATION;
+                        let next_event = DaemonState::LockdownWarning(prayer, two_min_before_iqamah);
 
-                System::notify(
-                    &format!("{prayer} Iqamah in 2 minutes"),
-                    "Get ready! Lockdown in 30 seconds!",
-                )
-                .await
-                .unwrap();
+                        watch_tx.send(DaemonSnapShot::new(
+                            next_event,
+                            &mut prayer_manager,
+                            config.iqamah_offset,
+                        ))?;
 
-                System::sleep_until_datetime(one_half_min_before_iqamah).await;
-                println!("Initiating lockdown");
+                        next_event
+                    }
+                }
+            }
+            // Triggers 2min before iqamah
+            DaemonState::LockdownWarning(prayer, two_min_before_iqamah) => {
+                tokio::select! {
+                    biased;
+                    Some(IpcRequest::ReloadConfig) = mpsc_rx.recv() => {
+                        println!("Reloading config...");
+                        (prayer_manager, config) = System::reload();
+                        DaemonState::Calculating
+                    },
 
-                let next_event =
-                    DaemonState::Lockdown(time + Duration::from_secs(LOCKDOWN_DURATION_SECONDS));
+                    _ = System::sleep_until_datetime(two_min_before_iqamah) => {
 
-                watch_tx
-                    .send(DaemonSnapShot {
-                        current_state: next_event,
-                        daily_schedule: prayer_manager.get_schedule(Local::now()),
-                        offsets: config.iqamah_offset,
-                    })
-                    .unwrap();
+                        System::notify(
+                            &format!("{prayer} Iqamah in 2 minutes"),
+                            "Get ready! Lockdown in 30 seconds!",
+                        )
+                        .await?;
 
-                next_event
+                        tokio::time::sleep(Duration::from_secs(30)).await;
+                        println!("Initiating Lockdown");
+
+                        let next_event =
+                            DaemonState::Lockdown(two_min_before_iqamah + TWO_MINUTES_DURATION + LOCKDOWN_DURATION);
+
+                        watch_tx.send(DaemonSnapShot::new(
+                            next_event,
+                            &mut prayer_manager,
+                            config.iqamah_offset,
+                        ))?;
+
+                        next_event
+                    }
+
+                }
             }
             DaemonState::Lockdown(unlock_time) => {
                 while Utc::now() < unlock_time {
                     if config.clone().options.lock_screen {
-                        System::lock_screen().await.unwrap();
+                        System::lock_screen().await?;
                     } else {
                         System::notify(
                             "Iqamah has started!!",
                             "Leave your PC and go pray already!",
                         )
-                        .await
-                        .unwrap();
+                        .await?;
                     }
 
-                    tokio::time::sleep(Duration::from_secs(LOCKDOWN_POLL_SECONDS)).await;
+                    tokio::time::sleep(LOCKDOWN_POLL_DURATION).await;
                 }
 
                 println!("Lockdown finished");
