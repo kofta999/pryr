@@ -39,7 +39,7 @@ pub async fn sleep_until_datetime(time: DateTime<Utc>) {
 
 pub fn reload() -> (PrayerManager, Config) {
     let config_path = get_config_path().unwrap();
-    let config = Config::from_file(config_path).expect("Couldn't parse Configuration File");
+    let config = Config::from_file(&config_path).expect("Couldn't parse Configuration File");
     let prayer_manager = PrayerManager::new(&config);
 
     (prayer_manager, config)

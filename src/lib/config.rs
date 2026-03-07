@@ -14,12 +14,12 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn from_file(path: PathBuf) -> Result<Config> {
+    pub fn from_file(path: &PathBuf) -> Result<Config> {
         let content = fs::read_to_string(path)?;
         Ok(toml::from_str(&content)?)
     }
 
-    pub fn save(&self, path: PathBuf) -> Result<()> {
+    pub fn save(&self, path: &PathBuf) -> Result<()> {
         let contents = toml::to_string(self)?;
         fs::write(path, contents)?;
 

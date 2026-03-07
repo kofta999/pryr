@@ -24,24 +24,56 @@ const TWO_MINUTES_DURATION: Duration = Duration::from_secs(120);
 async fn main() {
     if let Some(path) = get_config_path() {
         let config = if path.exists() {
-            Config::from_file(path).expect("Couldn't parse Configuration File")
+            match Config::from_file(&path) {
+                Ok(config) => config,
+                Err(e) => {
+                    eprintln!(
+                        "[ERROR] Couldn't parse Configuration File at {:?}: {}",
+                        path, e
+                    );
+                    return;
+                }
+            }
         } else {
             let config = Config::default();
-            create_dir_all(path.parent().expect("Path should end in config.toml"))
-                .await
-                .unwrap();
-            config.save(path).unwrap();
+            let parent = if let Some(parent) = path.parent() {
+                parent
+            } else {
+                eprintln!("[ERROR] Path should end in config.toml");
+                return;
+            };
+
+            if let Err(e) = create_dir_all(parent).await {
+                eprintln!("[ERROR] Could not create config directory: {}", e);
+                return;
+            }
+
+            if let Err(e) = config.save(&path) {
+                eprintln!("[ERROR] Could not save default config: {}", e);
+                return;
+            }
             config
         };
 
+        println!("[INFO] Starting daemon...");
         let (watch_tx, watch_rx) = watch::channel(DaemonSnapShot::default());
         let (mpsc_tx, mpsc_rx) = mpsc::channel::<IpcRequest>(10);
 
         let h1 = tokio::spawn(daemon_loop(config, watch_tx, mpsc_rx));
         let h2 = tokio::spawn(ipc_server_loop(watch_rx, mpsc_tx));
 
-        h1.await.unwrap().unwrap();
-        h2.await.unwrap().unwrap();
+        match h1.await {
+            Ok(Ok(_)) => (),
+            Ok(Err(e)) => eprintln!("[ERROR] daemon_loop returned an error: {}", e),
+            Err(e) => eprintln!("[ERROR] daemon_loop panicked: {}", e),
+        }
+        match h2.await {
+            Ok(Ok(_)) => (),
+            Ok(Err(e)) => eprintln!("[ERROR] ipc_server_loop returned an error: {}", e),
+            Err(e) => eprintln!("[ERROR] ipc_server_loop panicked: {}", e),
+        }
+    } else {
+        eprintln!("[ERROR] Could not get config path");
     }
 }
 
@@ -128,18 +160,18 @@ async fn daemon_loop(
                 next_event
             }
             DaemonState::WaitingForPrayer(prayer, time) => {
-                println!("Next prayer is {prayer:?} at {time}",);
-                println!("Sleeping until prayer");
+                println!("[INFO] Next prayer is {prayer:?} at {time}");
+                println!("[INFO] Sleeping until prayer time");
 
                 tokio::select! {
                     biased;
                     Some(IpcRequest::ReloadConfig) = mpsc_rx.recv() => {
-                        println!("Reloading config...");
+                        println!("[INFO] Received reload config request. Reloading...");
                         (prayer_manager, config) = system::reload();
                         DaemonState::Calculating
                     },
                     _ = system::sleep_until_datetime(time) => {
-                        println!("Woke up for prayer");
+                        println!("[INFO] Woke up for prayer: {prayer:?}");
 
                         system::notify(
                             &format!("Prayer {prayer} has started"),
@@ -173,7 +205,7 @@ async fn daemon_loop(
                 tokio::select! {
                     biased;
                     Some(IpcRequest::ReloadConfig) = mpsc_rx.recv() => {
-                        println!("Reloading config...");
+                        println!("[INFO] Received reload config request. Reloading...");
                         (prayer_manager, config) = system::reload();
                         DaemonState::Calculating
                     },
@@ -203,7 +235,7 @@ async fn daemon_loop(
                 tokio::select! {
                     biased;
                     Some(IpcRequest::ReloadConfig) = mpsc_rx.recv() => {
-                        println!("Reloading config...");
+                        println!("[INFO] Received reload config request. Reloading...");
                         (prayer_manager, config) = system::reload();
                         DaemonState::Calculating
                     },
@@ -217,7 +249,7 @@ async fn daemon_loop(
                         .await?;
 
                         tokio::time::sleep(Duration::from_secs(30)).await;
-                        println!("Initiating Lockdown");
+                        println!("[INFO] Initiating lockdown for prayer: {prayer:?}");
 
                         let next_event =
                             DaemonState::Lockdown(two_min_before_iqamah + TWO_MINUTES_DURATION + LOCKDOWN_DURATION);
@@ -248,7 +280,7 @@ async fn daemon_loop(
                     tokio::time::sleep(LOCKDOWN_POLL_DURATION).await;
                 }
 
-                println!("Lockdown finished");
+                println!("[INFO] Lockdown finished");
 
                 let next_event = DaemonState::Calculating;
 
