@@ -1,4 +1,4 @@
-use crate::{daemon::DaemonState, prayer_manager::PrayerTodaySchedule};
+use crate::{daemon::DaemonState, prayers::PrayerTodaySchedule};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]

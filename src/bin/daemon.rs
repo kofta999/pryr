@@ -3,7 +3,7 @@ use pryr::{
     config::Config,
     daemon::{DaemonSnapShot, DaemonState},
     ipc::{IpcRequest, IpcResponse},
-    prayer_manager::{ActionableEvent, PrayerManager},
+    prayers::{ActionableEvent, PrayerManager},
     system::{self, get_config_path, get_socket_path},
 };
 use salah::Utc;

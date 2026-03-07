@@ -1,23 +1,9 @@
 use crate::{
     config::{Config, IqamahOffset},
-    prayers_local::prayer_local::PrayerLocal,
+    prayers::{IqamahTime, PrayerEntry, PrayerLocal, PrayerName, PrayerTime, PrayerTodaySchedule},
 };
 use chrono::{DateTime, Utc};
 use salah::{Configuration, Coordinates, Local, PrayerSchedule};
-use serde::{Deserialize, Serialize};
-
-pub type PrayerName = PrayerLocal;
-pub type PrayerTime = DateTime<Utc>;
-pub type IqamahTime = DateTime<Utc>;
-
-#[derive(Default, Clone, Serialize, Deserialize)]
-pub struct PrayerTodaySchedule {
-    pub fajr: PrayerTime,
-    pub dhuhr: PrayerTime,
-    pub asr: PrayerTime,
-    pub maghrib: PrayerTime,
-    pub isha: PrayerTime,
-}
 
 pub enum ActionableEvent {
     WaitForPrayer(PrayerName, PrayerTime),
@@ -50,12 +36,22 @@ impl PrayerManager {
     pub fn get_schedule(&mut self, now: DateTime<Local>) -> PrayerTodaySchedule {
         let today_schedule = self.scheduler.on(now.date_naive()).calculate().unwrap();
 
+        let entry = |prayer: salah::Prayer| {
+            let prayer_time = today_schedule.time(prayer);
+            PrayerEntry {
+                prayer_time,
+                iqamah_time: self
+                    .get_iqamah_time(prayer.into(), prayer_time)
+                    .unwrap_or(prayer_time),
+            }
+        };
+
         PrayerTodaySchedule {
-            fajr: today_schedule.time(salah::Prayer::Fajr),
-            dhuhr: today_schedule.time(salah::Prayer::Dhuhr),
-            asr: today_schedule.time(salah::Prayer::Asr),
-            maghrib: today_schedule.time(salah::Prayer::Maghrib),
-            isha: today_schedule.time(salah::Prayer::Isha),
+            fajr: entry(salah::Prayer::Fajr),
+            dhuhr: entry(salah::Prayer::Dhuhr),
+            asr: entry(salah::Prayer::Asr),
+            maghrib: entry(salah::Prayer::Maghrib),
+            isha: entry(salah::Prayer::Isha),
         }
     }
 
@@ -88,7 +84,7 @@ impl PrayerManager {
         ActionableEvent::Skip
     }
 
-    fn get_offset(&self, current_prayer: PrayerLocal) -> Option<u8> {
+    fn get_offset(&self, current_prayer: PrayerName) -> Option<u8> {
         let offset = match current_prayer {
             PrayerLocal::Fajr => self.offsets.fajr,
             PrayerLocal::Dhuhr => self.offsets.dhuhr,
@@ -104,16 +100,16 @@ impl PrayerManager {
     pub fn get_iqamah_time(
         &self,
         current_prayer: PrayerLocal,
-        prayer_date: DateTime<Utc>,
+        prayer_time: PrayerTime,
     ) -> Option<DateTime<Utc>> {
         let offset = self.get_offset(current_prayer)?;
-        Some(prayer_date + chrono::Duration::minutes(offset.into()))
+        Some(prayer_time + chrono::Duration::minutes(offset.into()))
     }
 
     pub fn time_left_for_iqamah(
         &self,
         current_prayer: PrayerLocal,
-        prayer_time: DateTime<Utc>,
+        prayer_time: PrayerTime,
     ) -> Option<chrono::Duration> {
         Some(self.get_iqamah_time(current_prayer, prayer_time)? - Utc::now())
     }

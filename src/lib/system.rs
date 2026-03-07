@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::{config::Config, prayer_manager::PrayerManager};
+use crate::{config::Config, prayers::PrayerManager};
 use directories::BaseDirs;
 use notify_rust::Notification;
 use salah::{DateTime, Utc};
@@ -29,11 +29,11 @@ pub async fn lock_screen() -> anyhow::Result<()> {
 
 pub async fn sleep_until_datetime(time: DateTime<Utc>) {
     let now = Utc::now();
-    if time > now {
-        if let Ok(duration) = (time - now).to_std() {
-            println!("Sleeping for {duration:?}");
-            tokio::time::sleep_until(Instant::now() + duration).await;
-        }
+    if time > now
+        && let Ok(duration) = (time - now).to_std()
+    {
+        println!("Sleeping for {duration:?}");
+        tokio::time::sleep_until(Instant::now() + duration).await;
     }
 }
 

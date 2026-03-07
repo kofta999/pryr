@@ -13,10 +13,16 @@ tokio = { version = "1.0", features = ["full"] }
 notify-rust = "4"
 serde_json = "1.0.149"
 directories = "6.0.0"
+clap = { version = "4.5.60", features = ["derive"] }
+owo-colors = "4.3.0"
 
 [[bin]]
 name = "pryrd"
 path = "src/bin/daemon.rs"
+
+[[bin]]
+name = "pryr"
+path = "src/bin/cli.rs"
 
 [lib]
 path = "src/lib/mod.rs"

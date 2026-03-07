@@ -1,4 +1,4 @@
-use crate::prayers_local::{madhab_local::MadhabLocal, method_local::MethodLocal};
+use crate::prayers::{MadhabLocal, MethodLocal};
 use anyhow::{Ok, Result};
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};

@@ -1,6 +1,5 @@
 pub mod config;
-pub mod prayer_manager;
-pub mod prayers_local;
-pub mod system;
-pub mod ipc;
 pub mod daemon;
+pub mod ipc;
+pub mod prayers;
+pub mod system;
