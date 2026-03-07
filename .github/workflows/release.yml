@@ -1,0 +1,36 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - 'v*' # Only triggers when you push a tag like v1.0.0
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build app
+        run: cargo build --release
+
+      - name: Package Binaries
+        # Group them into a tarball so the user downloads one clean file
+        run: |
+          mkdir -p pryr-linux-x86_64
+          cp target/release/pryr target/release/pryrd pryr-linux-x86_64/
+          tar -czvf pryr-linux-x86_64.tar.gz pryr-linux-x86_64/
+
+      - name: Upload to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: pryr-linux-x86_64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
