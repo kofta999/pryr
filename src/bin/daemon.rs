@@ -1,7 +1,7 @@
 use pryr::{
     config::Config,
-    daemon::DaemonState,
-    ipc::{DaemonSnapShot, IpcRequest, IpcResponse},
+    daemon::{DaemonSnapShot, DaemonState},
+    ipc::{IpcRequest, IpcResponse},
     prayer_manager::{ActionableEvent, PrayerManager},
     system::System,
 };
@@ -24,23 +24,23 @@ async fn main() {
     let h1 = tokio::spawn(daemon_loop(config, watch_tx, mpsc_rx));
     let h2 = tokio::spawn(ipc_server_loop(watch_rx, mpsc_tx));
 
-    h1.await.unwrap();
-    h2.await.unwrap();
+    h1.await.unwrap().unwrap();
+    h2.await.unwrap().unwrap();
 }
 
 async fn ipc_server_loop(
     watch_rx: watch::Receiver<DaemonSnapShot>,
     mpsc_tx: mpsc::Sender<IpcRequest>,
-) {
+) -> anyhow::Result<()> {
     let socket_path = "/run/user/1000/pryr.sock";
 
-    // Ignore if socket doesn't exist
+    // Ignore error if socket doesn't exist
     let _ = tokio::fs::remove_file(socket_path).await;
 
-    let socket = tokio::net::UnixListener::bind(socket_path).unwrap();
+    let socket = tokio::net::UnixListener::bind(socket_path)?;
 
     loop {
-        let (mut stream, _) = socket.accept().await.unwrap();
+        let (mut stream, _) = socket.accept().await?;
         let watch_rx_clone = watch_rx.clone();
         let mpsc_tx_clone = mpsc_tx.clone();
 
@@ -48,9 +48,9 @@ async fn ipc_server_loop(
             let (read_half, mut write_half) = stream.split();
             let mut buf_reader = BufReader::new(read_half);
             let mut s = String::new();
-            buf_reader.read_line(&mut s).await.unwrap();
+            buf_reader.read_line(&mut s).await?;
 
-            let request: IpcRequest = serde_json::from_str(&s).unwrap();
+            let request: IpcRequest = serde_json::from_str(&s)?;
 
             let response: IpcResponse = match request {
                 IpcRequest::GetStatus => {
@@ -62,17 +62,18 @@ async fn ipc_server_loop(
                     IpcResponse::DailySchedule(schedule)
                 }
                 IpcRequest::ReloadConfig => {
-                    mpsc_tx_clone.send(IpcRequest::ReloadConfig).await.unwrap();
-                    IpcResponse::Success
+                    match mpsc_tx_clone.send(IpcRequest::ReloadConfig).await {
+                        Ok(_) => IpcResponse::Success,
+                        Err(e) => IpcResponse::Error(e.to_string()),
+                    }
                 }
             };
 
-            let response_string = serde_json::to_string(&response).unwrap();
-            write_half
-                .write_all(response_string.as_bytes())
-                .await
-                .unwrap();
-            write_half.flush().await.unwrap();
+            let response_string = serde_json::to_string(&response)?;
+            write_half.write_all(response_string.as_bytes()).await?;
+            write_half.flush().await?;
+
+            anyhow::Ok(())
         });
     }
 }
@@ -81,9 +82,8 @@ async fn daemon_loop(
     mut config: Config,
     watch_tx: watch::Sender<DaemonSnapShot>,
     mut mpsc_rx: mpsc::Receiver<IpcRequest>,
-) {
+) -> anyhow::Result<()> {
     let mut prayer_manager = PrayerManager::new(&config);
-
     let mut state = DaemonState::Calculating;
 
     loop {
@@ -101,13 +101,11 @@ async fn daemon_loop(
                     ActionableEvent::Skip => panic!("Shouldn't happen"),
                 };
 
-                watch_tx
-                    .send(DaemonSnapShot {
-                        current_state: next_event,
-                        daily_schedule: prayer_manager.get_schedule(Local::now()),
-                        offsets: config.iqamah_offset,
-                    })
-                    .unwrap();
+                watch_tx.send(DaemonSnapShot::new(
+                    next_event,
+                    &mut prayer_manager,
+                    config.iqamah_offset,
+                ))?;
 
                 next_event
             }
@@ -123,8 +121,6 @@ async fn daemon_loop(
                         DaemonState::Calculating
                     },
                     _ = System::sleep_until_datetime(time) => {
-
-                        // Fire a notification
                         println!("Woke up for prayer");
 
                         System::notify(
@@ -137,18 +133,16 @@ async fn daemon_loop(
                                     .num_minutes()
                             ),
                         )
-                        .await
-                        .unwrap();
+                        .await?;
 
                         let iqamah_time = prayer_manager.get_iqamah_time(prayer, time).unwrap();
-
                         let next_event = DaemonState::WaitingForIqamah(prayer, iqamah_time);
 
-                        watch_tx.send(DaemonSnapShot {
-                            current_state: next_event,
-                            daily_schedule: prayer_manager.get_schedule(Local::now()),
-                            offsets: config.iqamah_offset,
-                        }).unwrap();
+                        watch_tx.send(DaemonSnapShot::new(
+                            next_event,
+                            &mut prayer_manager,
+                            config.iqamah_offset,
+                        ))?;
 
                         next_event
                     },
@@ -214,13 +208,11 @@ async fn daemon_loop(
 
                 let next_event = DaemonState::Calculating;
 
-                watch_tx
-                    .send(DaemonSnapShot {
-                        current_state: next_event,
-                        daily_schedule: prayer_manager.get_schedule(Local::now()),
-                        offsets: config.iqamah_offset,
-                    })
-                    .unwrap();
+                watch_tx.send(DaemonSnapShot::new(
+                    next_event,
+                    &mut prayer_manager,
+                    config.iqamah_offset,
+                ))?;
 
                 next_event
             }

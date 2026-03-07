@@ -1,8 +1,7 @@
+use crate::{config::Config, prayer_manager::PrayerManager};
 use notify_rust::Notification;
 use salah::{DateTime, Utc};
 use tokio::{process::Command, time::Instant};
-
-use crate::{config::Config, prayer_manager::PrayerManager};
 
 pub struct System {}
 

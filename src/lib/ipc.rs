@@ -16,10 +16,3 @@ pub enum IpcResponse {
     Success,                            // Response for ReloadConfig / TriggerLockdown
     Error(String),
 }
-
-#[derive(Default)]
-pub struct DaemonSnapShot {
-    pub current_state: DaemonState,
-    pub daily_schedule: PrayerTodaySchedule,
-    pub offsets: IqamahOffset,
-}
