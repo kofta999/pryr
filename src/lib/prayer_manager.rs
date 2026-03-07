@@ -62,6 +62,12 @@ impl PrayerManager {
     pub fn get_next_actionable_event(&mut self, now: DateTime<Utc>) -> ActionableEvent {
         let today_schedule = self.scheduler.on(now.date_naive()).calculate().unwrap();
 
+        // TODO: Fork salah and update current to use an Option or smth
+        let fajr_time = today_schedule.time(salah::Prayer::Fajr);
+        if now < fajr_time {
+            return ActionableEvent::WaitForPrayer(PrayerLocal::Fajr, fajr_time);
+        }
+
         let current_prayer = today_schedule.current();
         let current_prayer_time = today_schedule.time(current_prayer);
         let current_iqamah_time = self
