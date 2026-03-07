@@ -53,3 +53,7 @@ pub fn get_config_path() -> Option<PathBuf> {
             .join("config.toml"),
     )
 }
+
+pub fn get_socket_path() -> Option<PathBuf> {
+    Some(BaseDirs::new()?.runtime_dir()?.join("pryr.sock"))
+}

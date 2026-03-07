@@ -50,6 +50,7 @@ async fn ipc_server_loop(
     mpsc_tx: mpsc::Sender<IpcRequest>,
 ) -> anyhow::Result<()> {
     let socket_path = "/run/user/1000/pryr.sock";
+    let socket_path = get_socket_path().ok_or(anyhow!("Socket path does not exist"))?;
 
     // Ignore error if socket doesn't exist
     let _ = tokio::fs::remove_file(socket_path).await;
