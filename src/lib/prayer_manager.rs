@@ -3,7 +3,7 @@ use crate::{
     prayers_local::prayer_local::PrayerLocal,
 };
 use chrono::{DateTime, Utc};
-use salah::{Configuration, Coordinates, PrayerSchedule};
+use salah::{Configuration, Coordinates, Local, PrayerSchedule};
 use serde::{Deserialize, Serialize};
 
 pub type PrayerName = PrayerLocal;
@@ -47,7 +47,7 @@ impl PrayerManager {
         }
     }
 
-    pub fn get_schedule(&mut self, now: DateTime<Utc>) -> PrayerTodaySchedule {
+    pub fn get_schedule(&mut self, now: DateTime<Local>) -> PrayerTodaySchedule {
         let today_schedule = self.scheduler.on(now.date_naive()).calculate().unwrap();
 
         PrayerTodaySchedule {

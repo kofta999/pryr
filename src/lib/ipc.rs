@@ -1,10 +1,5 @@
+use crate::{config::IqamahOffset, daemon::DaemonState, prayer_manager::PrayerTodaySchedule};
 use serde::{Deserialize, Serialize};
-
-use crate::{
-    config::IqamahOffset,
-    daemon::DaemonState,
-    prayer_manager::{PrayerName, PrayerTime, PrayerTodaySchedule},
-};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum IpcRequest {

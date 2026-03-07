@@ -5,7 +5,7 @@ use pryr::{
     prayer_manager::{ActionableEvent, PrayerManager},
     system::System,
 };
-use salah::Utc;
+use salah::{Local, Utc};
 use std::time::Duration;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
@@ -18,8 +18,8 @@ const LOCKDOWN_DURATION_SECONDS: u64 = 10 * 60;
 #[tokio::main]
 async fn main() {
     let config = Config::from_file("test-config.toml").expect("Couldn't parse Configuration File");
-    let (watch_tx, mut watch_rx) = watch::channel(DaemonSnapShot::default());
-    let (mpsc_tx, mut mpsc_rx) = mpsc::channel::<IpcRequest>(10);
+    let (watch_tx, watch_rx) = watch::channel(DaemonSnapShot::default());
+    let (mpsc_tx, mpsc_rx) = mpsc::channel::<IpcRequest>(10);
 
     let h1 = tokio::spawn(daemon_loop(config, watch_tx, mpsc_rx));
     let h2 = tokio::spawn(ipc_server_loop(watch_rx, mpsc_tx));
@@ -29,7 +29,7 @@ async fn main() {
 }
 
 async fn ipc_server_loop(
-    mut watch_rx: watch::Receiver<DaemonSnapShot>,
+    watch_rx: watch::Receiver<DaemonSnapShot>,
     mpsc_tx: mpsc::Sender<IpcRequest>,
 ) {
     let socket_path = "/run/user/1000/pryr.sock";
@@ -89,8 +89,7 @@ async fn daemon_loop(
     loop {
         state = match state {
             DaemonState::Calculating => {
-                let now = Utc::now();
-                let event = prayer_manager.get_next_actionable_event(now);
+                let event = prayer_manager.get_next_actionable_event(Utc::now());
 
                 let next_event = match event {
                     ActionableEvent::WaitForPrayer(name, time) => {
@@ -105,7 +104,7 @@ async fn daemon_loop(
                 watch_tx
                     .send(DaemonSnapShot {
                         current_state: next_event,
-                        daily_schedule: prayer_manager.get_schedule(now),
+                        daily_schedule: prayer_manager.get_schedule(Local::now()),
                         offsets: config.iqamah_offset,
                     })
                     .unwrap();
@@ -147,7 +146,7 @@ async fn daemon_loop(
 
                         watch_tx.send(DaemonSnapShot {
                             current_state: next_event,
-                            daily_schedule: prayer_manager.get_schedule(Utc::now()),
+                            daily_schedule: prayer_manager.get_schedule(Local::now()),
                             offsets: config.iqamah_offset,
                         }).unwrap();
 
@@ -188,7 +187,7 @@ async fn daemon_loop(
                 watch_tx
                     .send(DaemonSnapShot {
                         current_state: next_event,
-                        daily_schedule: prayer_manager.get_schedule(Utc::now()),
+                        daily_schedule: prayer_manager.get_schedule(Local::now()),
                         offsets: config.iqamah_offset,
                     })
                     .unwrap();
@@ -218,7 +217,7 @@ async fn daemon_loop(
                 watch_tx
                     .send(DaemonSnapShot {
                         current_state: next_event,
-                        daily_schedule: prayer_manager.get_schedule(Utc::now()),
+                        daily_schedule: prayer_manager.get_schedule(Local::now()),
                         offsets: config.iqamah_offset,
                     })
                     .unwrap();
