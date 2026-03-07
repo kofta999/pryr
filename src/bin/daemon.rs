@@ -194,7 +194,7 @@ async fn daemon_loop(
             }
             // Triggers 5min before iqamah
             DaemonState::IqamahWarning(prayer, iqamah_time) => {
-                println!("[INFO] Sleeping until 5 minuts before iqamah");
+                println!("[INFO] Sleeping until 5 minutes before iqamah");
                 let five_min_before_iqamah = iqamah_time - FIVE_MINUTES_DURATION;
 
                 tokio::select! {

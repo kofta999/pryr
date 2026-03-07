@@ -22,10 +22,10 @@ pub struct IpcListener(tokio::net::UnixListener);
 #[cfg(unix)]
 impl IpcListener {
     pub async fn bind() -> anyhow::Result<Self> {
-        let socket_path =
-            crate::system::get_socket_path().ok_or(anyhow!("Socket path does not exist"))?;
+        let socket_path = crate::system::get_socket_path()
+            .ok_or(anyhow::anyhow!("Socket path does not exist"))?;
         // Ignore error if socket doesn't exist
-        let _ = tokio::fs::remove_file(&path).await;
+        let _ = tokio::fs::remove_file(&socket_path).await;
         Ok(Self(tokio::net::UnixListener::bind(socket_path)?))
     }
 
