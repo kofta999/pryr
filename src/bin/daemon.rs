@@ -1,10 +1,10 @@
-use directories::BaseDirs;
+use anyhow::anyhow;
 use pryr::{
     config::Config,
     daemon::{DaemonSnapShot, DaemonState},
     ipc::{IpcRequest, IpcResponse},
     prayer_manager::{ActionableEvent, PrayerManager},
-    system::{self, get_config_path},
+    system::{self, get_config_path, get_socket_path},
 };
 use salah::Utc;
 use std::time::Duration;
@@ -49,11 +49,10 @@ async fn ipc_server_loop(
     watch_rx: watch::Receiver<DaemonSnapShot>,
     mpsc_tx: mpsc::Sender<IpcRequest>,
 ) -> anyhow::Result<()> {
-    let socket_path = "/run/user/1000/pryr.sock";
     let socket_path = get_socket_path().ok_or(anyhow!("Socket path does not exist"))?;
 
     // Ignore error if socket doesn't exist
-    let _ = tokio::fs::remove_file(socket_path).await;
+    let _ = tokio::fs::remove_file(&socket_path).await;
 
     let socket = tokio::net::UnixListener::bind(socket_path)?;
 
@@ -68,23 +67,24 @@ async fn ipc_server_loop(
             let mut s = String::new();
             buf_reader.read_line(&mut s).await?;
 
-            let request: IpcRequest = serde_json::from_str(&s)?;
-
-            let response: IpcResponse = match request {
-                IpcRequest::GetStatus => {
-                    let state = watch_rx_clone.borrow();
-                    IpcResponse::CurrentState(state.current_state)
-                }
-                IpcRequest::GetTodaySchedule => {
-                    let schedule = watch_rx_clone.borrow().daily_schedule.clone();
-                    IpcResponse::DailySchedule(schedule)
-                }
-                IpcRequest::ReloadConfig => {
-                    match mpsc_tx_clone.send(IpcRequest::ReloadConfig).await {
-                        Ok(_) => IpcResponse::Success,
-                        Err(e) => IpcResponse::Error(e.to_string()),
+            let response: IpcResponse = match serde_json::from_str::<IpcRequest>(&s) {
+                Ok(request) => match request {
+                    IpcRequest::GetStatus => {
+                        let state = watch_rx_clone.borrow();
+                        IpcResponse::CurrentState(state.current_state)
                     }
-                }
+                    IpcRequest::GetTodaySchedule => {
+                        let schedule = watch_rx_clone.borrow().daily_schedule.clone();
+                        IpcResponse::DailySchedule(schedule)
+                    }
+                    IpcRequest::ReloadConfig => {
+                        match mpsc_tx_clone.send(IpcRequest::ReloadConfig).await {
+                            Ok(_) => IpcResponse::Success,
+                            Err(e) => IpcResponse::Error(e.to_string()),
+                        }
+                    }
+                },
+                Err(_) => IpcResponse::Error("Invalid Command".to_string()),
             };
 
             let response_string = serde_json::to_string(&response)?;
