@@ -1,7 +1,8 @@
+use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, ValueEnum)]
 pub enum MadhabLocal {
     Shafi = 1,
     Hanafi = 2,
@@ -16,7 +17,7 @@ impl From<MadhabLocal> for salah::Madhab {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, ValueEnum)]
 pub enum MethodLocal {
     MuslimWorldLeague,
     Egyptian,
