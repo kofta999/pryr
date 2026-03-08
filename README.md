@@ -11,7 +11,7 @@ Notifications are too easy to dismiss when you're deep in a coding session. **`p
 - **Uncompromising Lockdown:** Stubbornly locks your screen during Iqamah. If you unlock it early, it instantly locks it again until the duration is over.
 - **Escalating Warnings:** Native desktop notifications at T-minus 5 minutes and 2 minutes before lockdown.
 - **Zero-Overhead IPC:** A lightning-fast CLI (`pryr`) communicates with the background daemon (`pryrd`) via Unix Domain Sockets (Linux) or Named Pipes (Windows).
-- **Dynamic Configuration:** Adjust prayer calculation methods, Madhab, and Iqamah offsets via a simple TOML file. Hot-reload the config without dropping the daemon.
+- **Dynamic Configuration:** Update your location and calculation methods on the fly using the CLI, or adjust Iqamah offsets via a simple TOML file. Hot-reloads without dropping the daemon.
 - **Native Screen Locking:** Uses `loginctl` on Linux (Wayland/X11) and the native `LockWorkStation` API on Windows to cleanly and forcefully lock your device.
 
 ---
@@ -47,6 +47,9 @@ irm https://raw.githubusercontent.com/kofta999/pryr/master/install.ps1 | iex
 The `pryr` CLI acts as a remote control for the background daemon.
 
 ```bash
+# Set your location, calculation method, and Madhab (automatically fetches coordinates)
+pryr configure --city "Suez, Egypt" --method egyptian --madhab shafi
+
 # View the full schedule for today (Adhan and Iqamah times)
 pryr schedule
 
@@ -82,7 +85,9 @@ On first run, `pryr` automatically generates a default configuration file based 
 - **Linux:** `~/.config/pryr/config.toml`
 - **Windows:** `%APPDATA%\pryr\config.toml` _(usually `C:\Users\YourName\AppData\Roaming\pryr\config.toml`)_
 
-By default, it uses the Egyptian General Authority of Survey method, but you can customize everything from your exact coordinates to the lockdown duration.
+The easiest way to update your location is using the `pryr configure` command, which automatically queries a geocoding API to find your latitude and longitude and updates the daemon instantly.
+
+For fine-grained control over your Iqamah delays or screen-locking behavior, you can manually edit the `config.toml` file:
 
 ```toml
 [location]
@@ -106,7 +111,7 @@ lock-screen = true
 
 ```
 
-After modifying the file, simply run `pryr reload-config` to instantly apply the new math.
+After manually modifying the file, simply run `pryr reload-config` to instantly apply the new math.
 
 ---
 
@@ -116,7 +121,7 @@ After modifying the file, simply run `pryr reload-config` to instantly apply the
 
 1. **`pryrd` (The Heart):** A Tokio-powered asynchronous state machine. It handles time math, schedules system sleeps, executes lockdowns, and broadcasts state changes via an `mpsc` watch channel. It runs invisibly via `systemd` (Linux) or Task Scheduler (Windows).
 2. **The Nerves:** `pryrd` binds to `/run/user/$UID/pryr.sock` (Linux) or `\\.\pipe\pryr-ipc` (Windows). It listens for Newline-Delimited JSON requests and responds instantly using zero-cost cached data.
-3. **`pryr` (The Face):** A lightweight, synchronous CLI built with `clap`. It connects to the socket/pipe, sends remote procedure calls, formats the JSON response with `owo-colors`, and exits in milliseconds.
+3. **`pryr` (The Face):** A lightweight, synchronous CLI built with `clap`. It connects to the socket/pipe, sends remote procedure calls, formats the JSON response with `owo-colors`, and exits in milliseconds. (Network requests, like geocoding a city, are strictly isolated to the CLI to keep the daemon purely offline).
 
 ---
 
