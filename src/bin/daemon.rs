@@ -68,7 +68,9 @@ async fn main() {
         match h1.await {
             Ok(Ok(_)) => (),
             Ok(Err(e)) => eprintln!("[ERROR] daemon_loop returned an error: {}", e),
-            Err(e) => eprintln!("[ERROR] daemon_loop panicked: {}", e),
+            Err(e) => eprintln!(
+                "[ERROR] Main daemon task panicked. This is likely due to an invalid configuration that prevents prayer time calculation. {e}",
+            ),
         }
         match h2.await {
             Ok(Ok(_)) => (),
