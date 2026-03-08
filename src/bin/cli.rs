@@ -4,6 +4,7 @@ use owo_colors::OwoColorize;
 use pryr::config::{Config, Location};
 use pryr::ipc::IpcRequest;
 use pryr::ipc::{IpcResponse, connect_ipc};
+use pryr::prayers::{MadhabLocal, MethodLocal};
 use pryr::system::get_config_path;
 use std::io::Write;
 use std::io::{BufRead, BufReader};
@@ -27,9 +28,14 @@ enum Commands {
 }
 
 #[derive(Args)]
+#[group(required = true, multiple = true, id = "config_group")]
 struct ConfigureArgs {
-    #[arg(short, long)]
-    city: String,
+    #[arg(long, group = "config_group")]
+    city: Option<String>,
+    #[arg(long, group = "config_group")]
+    method: Option<MethodLocal>,
+    #[arg(long, group = "config_group")]
+    madhab: Option<MadhabLocal>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -39,21 +45,31 @@ fn main() -> anyhow::Result<()> {
         Commands::Status => IpcRequest::GetStatus,
         Commands::Schedule => IpcRequest::GetTodaySchedule,
         Commands::ReloadConfig => IpcRequest::ReloadConfig,
-        Commands::Configure(args) => match get_location(&args.city) {
-            Some(location) => {
-                let config_path = get_config_path().context("Could not get config path")?;
-                let mut config = Config::from_file(&config_path)?;
+        Commands::Configure(args) => {
+            let config_path = get_config_path().context("Could not get config path")?;
+            let mut config = Config::from_file(&config_path)?;
 
-                config.location = location;
-                config.save(&config_path)?;
+            if let Some(ref city) = args.city {
+                match get_location(city) {
+                    Some(location) => config.location = location,
+                    None => {
+                        eprintln!("Could not find location for this city");
+                        process::exit(1)
+                    }
+                }
+            }
 
-                IpcRequest::ReloadConfig
+            if let Some(method) = args.method {
+                config.prayer_time.method = method;
             }
-            None => {
-                eprintln!("Could not find location for this city");
-                process::exit(1)
+
+            if let Some(madhab) = args.madhab {
+                config.prayer_time.madhab = madhab;
             }
-        },
+
+            config.save(&config_path)?;
+            IpcRequest::ReloadConfig
+        }
     };
 
     let mut stream = connect_ipc().context("Could not connect to daemon. Is pryrd running?")?;
@@ -81,9 +97,12 @@ fn main() -> anyhow::Result<()> {
 
 // TODO: Make a menu with selections so the user won't pick wrong location
 fn get_location(city: &str) -> Option<Location> {
-    let mut res = ureq::get(format!("{LOCATION_API_BASE_URL}&q=${city}"))
-        .call()
-        .expect("Couldn't send request to Location API");
+    let mut res = ureq::get(format!(
+        "{LOCATION_API_BASE_URL}&q=${}",
+        city.replace(" ", "%20")
+    ))
+    .call()
+    .expect("Couldn't send request to Location API");
     let res = res
         .body_mut()
         .read_to_string()
