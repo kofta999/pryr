@@ -18,10 +18,6 @@ use tokio::{
 };
 
 const LOCKDOWN_POLL_DURATION: Duration = Duration::from_secs(10);
-const LOCKDOWN_DURATION: Duration = Duration::from_secs(10 * 60);
-const FIVE_MINUTES_DURATION: Duration = Duration::from_secs(300);
-const THREE_MINUTES_DURATION: Duration = Duration::from_secs(180);
-const TWO_MINUTES_DURATION: Duration = Duration::from_secs(120);
 
 #[tokio::main]
 async fn main() {
@@ -198,10 +194,13 @@ async fn daemon_loop(
                     },
                 }
             }
-            // Triggers 5min before iqamah
             DaemonState::IqamahWarning(prayer, iqamah_time) => {
-                println!("[INFO] Sleeping until 5 minutes before iqamah");
-                let five_min_before_iqamah = iqamah_time - FIVE_MINUTES_DURATION;
+                println!(
+                    "[INFO] Sleeping until {} minutes before iqamah",
+                    config.lockdown.warning_before_iqamah
+                );
+                let warning_time =
+                    iqamah_time - Duration::from_mins(config.lockdown.warning_before_iqamah.into());
 
                 tokio::select! {
                     biased;
@@ -211,15 +210,15 @@ async fn daemon_loop(
                         DaemonState::Calculating
                     },
 
-                    _ =  system::sleep_until_datetime(five_min_before_iqamah) => {
+                    _ =  system::sleep_until_datetime(warning_time) => {
                         system::notify(
-                            &format!("{prayer} Iqamah in 5 minutes"),
-                            "Get ready! Lockdown in 3 minutes!",
+                            &format!("{prayer} Iqamah in {} minutes", config.lockdown.warning_before_iqamah),
+                            &format!("Get ready! Lockdown in {} minutes!", config.lockdown.lock_before_iqamah),
                         )
                         .await?;
 
-                        let two_min_before_iqamah = five_min_before_iqamah + THREE_MINUTES_DURATION;
-                        let next_event = DaemonState::LockdownWarning(prayer, two_min_before_iqamah);
+                        let lockdown_time = iqamah_time - Duration::from_mins(config.lockdown.lock_before_iqamah.into());
+                        let next_event = DaemonState::LockdownWarning(prayer, lockdown_time);
 
                         watch_tx.send(DaemonSnapShot::new(
                             next_event,
@@ -231,8 +230,7 @@ async fn daemon_loop(
                     }
                 }
             }
-            // Triggers 2min before iqamah
-            DaemonState::LockdownWarning(prayer, two_min_before_iqamah) => {
+            DaemonState::LockdownWarning(prayer, lockdown_time) => {
                 tokio::select! {
                     biased;
                     Some(IpcRequest::ReloadConfig) = mpsc_rx.recv() => {
@@ -241,10 +239,10 @@ async fn daemon_loop(
                         DaemonState::Calculating
                     },
 
-                    _ = system::sleep_until_datetime(two_min_before_iqamah) => {
+                    _ = system::sleep_until_datetime(lockdown_time) => {
 
                         system::notify(
-                            &format!("{prayer} Iqamah in 2 minutes"),
+                            &format!("{prayer} Iqamah in {} minutes", config.lockdown.lock_before_iqamah),
                             "Get ready! Lockdown in 30 seconds!",
                         )
                         .await?;
@@ -252,8 +250,11 @@ async fn daemon_loop(
                         tokio::time::sleep(Duration::from_secs(30)).await;
                         println!("[INFO] Initiating lockdown for prayer: {prayer:?}");
 
-                        let next_event =
-                            DaemonState::Lockdown(two_min_before_iqamah + TWO_MINUTES_DURATION + LOCKDOWN_DURATION);
+                        let unlock_time =
+                            lockdown_time
+                            + Duration::from_mins(config.lockdown.lock_before_iqamah.into())
+                            + Duration::from_mins(config.lockdown.unlock_after_iqamah.into());
+                        let next_event = DaemonState::Lockdown(unlock_time);
 
                         watch_tx.send(DaemonSnapShot::new(
                             next_event,

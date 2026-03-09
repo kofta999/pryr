@@ -1,22 +1,29 @@
 use crate::prayers::{MadhabLocal, MethodLocal};
-use anyhow::{Ok, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Config {
+    #[serde(default)]
     pub location: Location,
-    #[serde(rename = "prayer-config")]
+    #[serde(rename = "prayer-config", default)]
     pub prayer_time: PrayerConfig,
-    #[serde(rename = "iqamah-offset")]
+    #[serde(rename = "iqamah-offset", default)]
     pub iqamah_offset: IqamahOffset,
+    #[serde(default)]
     pub options: Options,
+    #[serde(rename = "lockdown", default)]
+    pub lockdown: LockdownConfig,
 }
 
 impl Config {
     pub fn from_file(path: &PathBuf) -> Result<Config> {
-        let content = fs::read_to_string(path)?;
-        Ok(toml::from_str(&content)?)
+        match fs::read_to_string(path) {
+            Ok(content) => Ok(toml::from_str(&content).unwrap_or_default()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Config::default()),
+            Err(e) => Err(e.into()),
+        }
     }
 
     pub fn save(&self, path: &PathBuf) -> Result<()> {
@@ -79,4 +86,24 @@ impl Default for Options {
 pub struct Location {
     pub long: f64,
     pub lat: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct LockdownConfig {
+    #[serde(rename = "warning-before-iqamah")]
+    pub warning_before_iqamah: u32,
+    #[serde(rename = "lock-before-iqamah")]
+    pub lock_before_iqamah: u32,
+    #[serde(rename = "unlock-after-iqamah")]
+    pub unlock_after_iqamah: u32,
+}
+
+impl Default for LockdownConfig {
+    fn default() -> Self {
+        Self {
+            warning_before_iqamah: 5,
+            lock_before_iqamah: 2,
+            unlock_after_iqamah: 10,
+        }
+    }
 }

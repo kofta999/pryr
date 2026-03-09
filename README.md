@@ -9,7 +9,8 @@ Notifications are too easy to dismiss when you're deep in a coding session. **`p
 ### ✨ Features
 
 - **Uncompromising Lockdown:** Stubbornly locks your screen during Iqamah. If you unlock it early, it instantly locks it again until the duration is over.
-- **Escalating Warnings:** Native desktop notifications at T-minus 5 minutes and 2 minutes before lockdown.
+- **Escalating Warnings:** Native desktop notifications before lockdown at configurable intervals (default: 5 minutes and 2 minutes before Iqamah).
+- **Configurable Lockdown Boundaries:** Fine-tune exactly when warnings fire, when the lockdown begins, and how long after Iqamah the session stays locked.
 - **Zero-Overhead IPC:** A lightning-fast CLI (`pryr`) communicates with the background daemon (`pryrd`) via Unix Domain Sockets (Linux) or Named Pipes (Windows).
 - **Dynamic Configuration:** Update your location and calculation methods on the fly using the CLI, or adjust Iqamah offsets via a simple TOML file. Hot-reloads without dropping the daemon.
 - **Native Screen Locking:** Uses `loginctl` on Linux (Wayland/X11) and the native `LockWorkStation` API on Windows to cleanly and forcefully lock your device.
@@ -108,6 +109,14 @@ isha = 15
 [options]
 # Set to false to only receive notifications without locking the screen
 lock-screen = true
+
+[lockdown]
+# Minutes before Iqamah to show the first warning notification (default: 5)
+warning-before-iqamah = 5
+# Minutes before Iqamah to initiate the screen lock (default: 2)
+lock-before-iqamah = 2
+# Minutes after Iqamah before the screen is unlocked (default: 10)
+unlock-after-iqamah = 10
 
 ```
 
