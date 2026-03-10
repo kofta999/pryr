@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3](https://github.com/kofta999/pryr/compare/v0.4.2...v0.4.3) - 2026-03-10
+
+### Other
+
+- adjust install scripts to use triple target filenames
+
 ## [0.4.2](https://github.com/kofta999/pryr/compare/v0.4.1...v0.4.2) - 2026-03-10
 
 ### Fixed
