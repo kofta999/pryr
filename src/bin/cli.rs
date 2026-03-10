@@ -6,6 +6,7 @@ use pryr::ipc::IpcRequest;
 use pryr::ipc::{IpcResponse, connect_ipc};
 use pryr::prayers::{MadhabLocal, MethodLocal};
 use pryr::system::get_config_path;
+use pryr::updater::run_update;
 use std::io::Write;
 use std::io::{BufRead, BufReader};
 use std::process;
@@ -25,6 +26,7 @@ enum Commands {
     Schedule(OutputArgs),
     ReloadConfig,
     Configure(ConfigureArgs),
+    Update,
 }
 
 #[derive(Args)]
@@ -54,6 +56,10 @@ fn main() -> anyhow::Result<()> {
         Commands::Configure(args) => {
             handle_configure(&args)?;
             (IpcRequest::ReloadConfig, false)
+        }
+        Commands::Update => {
+            run_update()?;
+            return Ok(());
         }
     };
 
