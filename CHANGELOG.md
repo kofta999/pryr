@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1](https://github.com/kofta999/pryr/compare/v0.4.0...v0.4.1) - 2026-03-10
+
+### Other
+
+- binary sizes reduction
+- use current_thread instead of multi
+
 ## [0.4.0](https://github.com/kofta999/pryr/compare/v0.3.5...v0.4.0) - 2026-03-10
 
 ### Added
