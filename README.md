@@ -57,6 +57,10 @@ pryr schedule
 # Get the live countdown to the next prayer or lockdown event
 pryr status
 
+# Output schedule or status as raw JSON (useful for scripting and integrations)
+pryr schedule --json
+pryr status --json
+
 # Reload the configuration file dynamically without restarting the daemon
 pryr reload-config
 
@@ -75,6 +79,16 @@ pryr reload-config
   ○ Isha         07:20 PM       07:35 PM
 └───────────────────────────────────────
 
+```
+
+Pass `--json` to get machine-readable output instead:
+
+```bash
+pryr schedule --json
+```
+
+```json
+{"DailySchedule":{"fajr":{"prayer_time":"2026-03-10T04:45:00Z","iqamah_time":"2026-03-10T05:05:00Z"},"dhuhr":{"prayer_time":"2026-03-10T12:05:00Z","iqamah_time":"2026-03-10T12:20:00Z"},"asr":{"prayer_time":"2026-03-10T15:32:00Z","iqamah_time":"2026-03-10T15:47:00Z"},"maghrib":{"prayer_time":"2026-03-10T18:01:00Z","iqamah_time":"2026-03-10T18:11:00Z"},"isha":{"prayer_time":"2026-03-10T19:20:00Z","iqamah_time":"2026-03-10T19:35:00Z"}}}
 ```
 
 ---

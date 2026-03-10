@@ -1,6 +1,6 @@
-use anyhow::Context;
+use anyhow::{Context, Ok};
 use clap::{Args, Parser, Subcommand};
-use owo_colors::OwoColorize;
+use pryr::cli::PrettyPrint;
 use pryr::config::{Config, Location};
 use pryr::ipc::IpcRequest;
 use pryr::ipc::{IpcResponse, connect_ipc};
@@ -21,10 +21,16 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    Status,
-    Schedule,
+    Status(OutputArgs),
+    Schedule(OutputArgs),
     ReloadConfig,
     Configure(ConfigureArgs),
+}
+
+#[derive(Args)]
+struct OutputArgs {
+    #[arg(long)]
+    json: bool,
 }
 
 #[derive(Args)]
@@ -41,55 +47,23 @@ struct ConfigureArgs {
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    let request: IpcRequest = match cli.command {
-        Commands::Status => IpcRequest::GetStatus,
-        Commands::Schedule => IpcRequest::GetTodaySchedule,
-        Commands::ReloadConfig => IpcRequest::ReloadConfig,
+    let (request, json_output) = match cli.command {
+        Commands::Status(args) => (IpcRequest::GetStatus, args.json),
+        Commands::Schedule(args) => (IpcRequest::GetTodaySchedule, args.json),
+        Commands::ReloadConfig => (IpcRequest::ReloadConfig, false),
         Commands::Configure(args) => {
-            let config_path = get_config_path().context("Could not get config path")?;
-            let mut config = Config::from_file(&config_path)?;
-
-            if let Some(ref city) = args.city {
-                match get_location(city) {
-                    Some(location) => config.location = location,
-                    None => {
-                        eprintln!("Could not find location for this city");
-                        process::exit(1)
-                    }
-                }
-            }
-
-            if let Some(method) = args.method {
-                config.prayer_time.method = method;
-            }
-
-            if let Some(madhab) = args.madhab {
-                config.prayer_time.madhab = madhab;
-            }
-
-            config.save(&config_path)?;
-            IpcRequest::ReloadConfig
+            handle_configure(&args)?;
+            (IpcRequest::ReloadConfig, false)
         }
     };
 
-    let mut stream = connect_ipc().context("Could not connect to daemon. Is pryrd running?")?;
+    let json_response = send_ipc_request(&request)?;
+    let response: IpcResponse = serde_json::from_str(&json_response)?;
 
-    let request_string = serde_json::to_string(&request)? + "\n";
-    stream.write_all(request_string.as_bytes())?;
-    stream.flush()?;
-
-    let mut buf_reader = BufReader::new(&stream);
-    let mut s = String::new();
-
-    buf_reader.read_line(&mut s)?;
-
-    let response: IpcResponse = serde_json::from_str(&s)?;
-
-    match response {
-        IpcResponse::CurrentState(daemon_state) => println!("{daemon_state}"),
-        IpcResponse::DailySchedule(prayer_today_schedule) => println!("{prayer_today_schedule}"),
-        IpcResponse::Success => println!("{}", "Success".green()),
-        IpcResponse::Error(e) => println!("{}: {}", "Error".red(), e),
+    if json_output {
+        println!("{json_response}");
+    } else {
+        response.pretty_print();
     }
 
     Ok(())
@@ -124,4 +98,46 @@ fn get_location(city: &str) -> Option<Location> {
             .parse::<f64>()
             .expect("Couldn't parse latitude"),
     })
+}
+
+fn handle_configure(args: &ConfigureArgs) -> anyhow::Result<()> {
+    let config_path = get_config_path().context("Could not get config path")?;
+    let mut config = Config::from_file(&config_path)?;
+
+    if let Some(ref city) = args.city {
+        match get_location(city) {
+            Some(location) => config.location = location,
+            None => {
+                eprintln!("Could not find location for this city");
+                process::exit(1)
+            }
+        }
+    }
+
+    if let Some(method) = args.method {
+        config.prayer_time.method = method;
+    }
+
+    if let Some(madhab) = args.madhab {
+        config.prayer_time.madhab = madhab;
+    }
+
+    config.save(&config_path)?;
+
+    Ok(())
+}
+
+fn send_ipc_request(request: &IpcRequest) -> anyhow::Result<String> {
+    let mut stream = connect_ipc().context("Could not connect to daemon. Is pryrd running?")?;
+
+    let request_string = serde_json::to_string(&request)? + "\n";
+    stream.write_all(request_string.as_bytes())?;
+    stream.flush()?;
+
+    let mut buf_reader = BufReader::new(&stream);
+    let mut s = String::new();
+
+    buf_reader.read_line(&mut s)?;
+
+    Ok(s)
 }
