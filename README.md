@@ -14,6 +14,7 @@ Notifications are too easy to dismiss when you're deep in a coding session. **`p
 - **Zero-Overhead IPC:** A lightning-fast CLI (`pryr`) communicates with the background daemon (`pryrd`) via Unix Domain Sockets (Linux) or Named Pipes (Windows).
 - **Dynamic Configuration:** Update your location and calculation methods on the fly using the CLI, or adjust Iqamah offsets via a simple TOML file. Hot-reloads without dropping the daemon.
 - **Native Screen Locking:** Uses `loginctl` on Linux (Wayland/X11) and the native `LockWorkStation` API on Windows to cleanly and forcefully lock your device.
+- **Self-Updating:** `pryr` can update itself to the latest version with a single command.
 
 ---
 
@@ -64,6 +65,8 @@ pryr status --json
 # Reload the configuration file dynamically without restarting the daemon
 pryr reload-config
 
+# Update pryr to the latest version
+pryr update
 ```
 
 #### Example Output:
