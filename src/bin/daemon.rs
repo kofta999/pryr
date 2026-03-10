@@ -19,7 +19,7 @@ use tokio::{
 
 const LOCKDOWN_POLL_DURATION: Duration = Duration::from_secs(10);
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
     if let Some(path) = get_config_path() {
         let config = if path.exists() {
