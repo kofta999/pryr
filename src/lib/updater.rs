@@ -1,4 +1,3 @@
-#[cfg(unix)]
 use std::process::Command;
 
 fn stop_daemon() -> anyhow::Result<()> {
