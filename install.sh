@@ -10,7 +10,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 REPO="kofta999/pryr"
-TARBALL_URL="https://github.com/$REPO/releases/latest/download/pryr-linux-x86_64.tar.gz"
+TARBALL_URL="https://github.com/$REPO/releases/latest/download/pryr-x86_64-unknown-linux-gnu.tar.gz"
 BIN_DIR="$HOME/.local/bin"
 SYSTEMD_DIR="$HOME/.config/systemd/user"
 

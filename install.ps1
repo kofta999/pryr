@@ -2,7 +2,7 @@
 # 1. Setup Variables
 # ==========================================
 $Repo = "kofta999/pryr"
-$ZipUrl = "https://github.com/$Repo/releases/latest/download/pryr-windows-x86_64.zip"
+$ZipUrl = "https://github.com/$Repo/releases/latest/download/pryr-x86_64-pc-windows-msvc.zip"
 $InstallDir = "$env:LOCALAPPDATA\pryr\bin"
 $ConfigDir = "$env:APPDATA\pryr"
 
