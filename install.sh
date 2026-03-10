@@ -41,8 +41,8 @@ mkdir -p "$BIN_DIR"
 tar -xzf "$TMP_DIR/pryr.tar.gz" -C "$TMP_DIR"
 
 # Move binaries and make them executable
-mv "$TMP_DIR/pryr-linux-x86_64/pryr" "$BIN_DIR/"
-mv "$TMP_DIR/pryr-linux-x86_64/pryrd" "$BIN_DIR/"
+mv "$TMP_DIR/pryr" "$BIN_DIR/"
+mv "$TMP_DIR/pryrd" "$BIN_DIR/"
 chmod +x "$BIN_DIR/pryr" "$BIN_DIR/pryrd"
 
 # Clean up temp folder

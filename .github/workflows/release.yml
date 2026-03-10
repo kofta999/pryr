@@ -36,17 +36,15 @@ jobs:
       - name: Package Binaries (Linux)
         if: matrix.is_windows == false
         run: |
-          mkdir -p pryr-linux-x86_64
-          cp target/release/pryr target/release/pryrd pryr-linux-x86_64/
-          tar -czvf ${{ matrix.archive }} pryr-linux-x86_64/
+          cd target/release
+          tar -czvf ../../${{ matrix.archive }} pryr pryrd
 
       - name: Package Binaries (Windows)
         if: matrix.is_windows == true
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path pryr-windows-x86_64
-          Copy-Item target/release/pryr.exe, target/release/pryrd.exe -Destination pryr-windows-x86_64/
-          Compress-Archive -Path pryr-windows-x86_64/* -DestinationPath ${{ matrix.archive }}
+          cd target/release
+          Compress-Archive -Path pryr.exe, pryrd.exe -DestinationPath ../../${{ matrix.archive }}
 
       - name: Upload to GitHub Releases
         uses: softprops/action-gh-release@v2
