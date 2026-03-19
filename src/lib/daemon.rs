@@ -39,31 +39,57 @@ impl Display for DaemonState {
             }
         }
 
+        let is_jumuah = |prayer: PrayerName| {
+            let local_now = Local::now();
+            use chrono::Datelike;
+            local_now.weekday() == chrono::Weekday::Fri
+                && prayer == crate::prayers::PrayerLocal::Dhuhr
+        };
+
         match *self {
             Self::Calculating => write!(f, "{}", "Calculating next prayer".bright_cyan()),
             Self::WaitingForPrayer(next_prayer, prayer_time) => {
+                let name = if is_jumuah(next_prayer) {
+                    "Jumu'ah".to_string()
+                } else {
+                    next_prayer.to_string()
+                };
                 write!(
                     f,
                     "Next prayer is {}, in {}",
-                    next_prayer.yellow(),
+                    name.yellow(),
                     format_duration_until(prayer_time).green()
                 )
             }
             Self::IqamahWarning(current_prayer, iqamah_time) => {
+                let name = if is_jumuah(current_prayer) {
+                    "Jumu'ah".to_string()
+                } else {
+                    current_prayer.to_string()
+                };
                 write!(
                     f,
                     "{} has started, iqamah in {}",
-                    current_prayer.yellow(),
+                    name.yellow(),
                     format_duration_until(iqamah_time).green()
                 )
             }
             Self::LockdownWarning(prayer_local, lockdown_time) => {
-                write!(
-                    f,
-                    "{} iqamah is soon, lockdown initiating in {}",
-                    prayer_local.yellow(),
-                    format_duration_until(lockdown_time).red()
-                )
+                if is_jumuah(prayer_local) {
+                    write!(
+                        f,
+                        "{} khutbah is soon, lockdown initiating in {}",
+                        "Jumu'ah".yellow(),
+                        format_duration_until(lockdown_time).red()
+                    )
+                } else {
+                    write!(
+                        f,
+                        "{} iqamah is soon, lockdown initiating in {}",
+                        prayer_local.yellow(),
+                        format_duration_until(lockdown_time).red()
+                    )
+                }
             }
             Self::Lockdown(unlock_time) => write!(
                 f,

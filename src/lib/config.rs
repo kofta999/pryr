@@ -122,7 +122,7 @@ impl Default for JumuahConfig {
     fn default() -> Self {
         Self {
             early_warning: 45,
-            lockdown_duration: 45,
+            lockdown_duration: 30,
         }
     }
 }
