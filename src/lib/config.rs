@@ -11,6 +11,8 @@ pub struct Config {
     pub prayer_time: PrayerConfig,
     #[serde(default)]
     pub jumuah: JumuahConfig,
+    #[serde(default)]
+    pub ramadan: RamadanConfig,
     #[serde(rename = "iqamah-offset", default)]
     pub iqamah_offset: IqamahOffset,
     #[serde(default)]
@@ -22,7 +24,13 @@ pub struct Config {
 impl Config {
     pub fn from_file(path: &PathBuf) -> Result<Config> {
         match fs::read_to_string(path) {
-            Ok(content) => Ok(toml::from_str(&content).unwrap_or_default()),
+            Ok(content) => match toml::from_str(&content) {
+                Ok(config) => Ok(config),
+                Err(e) => {
+                    eprintln!("[WARNING] Failed to parse config file: {}", e);
+                    Ok(Config::default())
+                }
+            },
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Config::default()),
             Err(e) => Err(e.into()),
         }
@@ -111,6 +119,7 @@ impl Default for LockdownConfig {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[serde(default)]
 pub struct JumuahConfig {
     #[serde(rename = "early-warning")]
     pub early_warning: u32,
@@ -123,6 +132,23 @@ impl Default for JumuahConfig {
         Self {
             early_warning: 45,
             lockdown_duration: 30,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[serde(default)]
+pub struct RamadanConfig {
+    pub enabled: bool,
+    #[serde(rename = "isha-delay")]
+    pub isha_delay: u32,
+}
+
+impl Default for RamadanConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            isha_delay: 30,
         }
     }
 }

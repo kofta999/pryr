@@ -119,8 +119,14 @@ madhab = "Shafi"
 [jumuah]
 # Minutes BEFORE Dhuhr on Fridays to send the "Get ready for Jumu'ah" warning (default: 45)
 early-warning = 45
-# Minutes to lock the screen after Dhuhr starts for the Khutbah and prayer (default: 45)
-lockdown-duration = 45
+# Minutes to lock the screen after Dhuhr starts for the Khutbah and prayer (default: 30)
+lockdown-duration = 30
+
+[ramadan]
+# Set to true during the month of Ramadan to automatically apply Hijri-specific offsets
+enabled = false
+# How many minutes to delay Isha past the standard Adhan time (e.g., 30 for Umm al-Qura during Ramadan)
+isha-delay = 30
 
 [iqamah-offset]
 fajr = 20
