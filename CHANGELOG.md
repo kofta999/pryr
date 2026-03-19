@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1](https://github.com/kofta999/pryr/compare/v0.5.0...v0.5.1) - 2026-03-19
+
+### Fixed
+
+- updates on windows
+
 ## [0.5.0](https://github.com/kofta999/pryr/compare/v0.4.5...v0.5.0) - 2026-03-19
 
 ### Added
