@@ -1,9 +1,9 @@
 use crate::{
-    config::{Config, IqamahOffset},
+    config::{Config, IqamahOffset, RamadanConfig},
     prayers::{IqamahTime, PrayerEntry, PrayerLocal, PrayerName, PrayerTime, PrayerTodaySchedule},
 };
 use chrono::{DateTime, Utc};
-use salah::{Configuration, Coordinates, Local, PrayerSchedule};
+use salah::{Configuration, Coordinates, Local, PrayerSchedule, PrayerTimes};
 
 pub enum ActionableEvent {
     WaitForPrayer(PrayerName, PrayerTime),
@@ -14,6 +14,7 @@ pub enum ActionableEvent {
 pub struct PrayerManager {
     offsets: IqamahOffset,
     scheduler: PrayerSchedule,
+    ramadan: RamadanConfig,
 }
 
 impl PrayerManager {
@@ -30,6 +31,7 @@ impl PrayerManager {
         Self {
             offsets: config.iqamah_offset,
             scheduler,
+            ramadan: config.ramadan,
         }
     }
 
@@ -37,7 +39,12 @@ impl PrayerManager {
         let today_schedule = self.scheduler.on(now.date_naive()).calculate().unwrap();
 
         let entry = |prayer: salah::Prayer| {
-            let prayer_time = today_schedule.time(prayer);
+            let mut prayer_time = today_schedule.time(prayer);
+            if matches!(prayer, salah::Prayer::Isha) && self.ramadan.enabled {
+                prayer_time =
+                    prayer_time + chrono::Duration::minutes(self.ramadan.isha_delay.into());
+            }
+
             PrayerEntry {
                 prayer_time,
                 iqamah_time: self
@@ -58,22 +65,30 @@ impl PrayerManager {
     pub fn get_next_actionable_event(&mut self, now: DateTime<Utc>) -> ActionableEvent {
         let today_schedule = self.scheduler.on(now.date_naive()).calculate().unwrap();
 
+        let time_for = |prayer: salah::Prayer, schedule: PrayerTimes| {
+            let mut pt = schedule.time(prayer);
+            if matches!(prayer, salah::Prayer::Isha) && self.ramadan.enabled {
+                pt = pt + chrono::Duration::minutes(self.ramadan.isha_delay.into());
+            }
+            pt
+        };
+
         // TODO: Fork salah and update current to use an Option or smth
-        let fajr_time = today_schedule.time(salah::Prayer::Fajr);
+        let fajr_time = time_for(salah::Prayer::Fajr, today_schedule);
         if now < fajr_time {
             return ActionableEvent::WaitForPrayer(PrayerLocal::Fajr, fajr_time);
         }
 
         let current_prayer = today_schedule.current();
-        let current_prayer_time = today_schedule.time(current_prayer);
+        let current_prayer_time = time_for(current_prayer, today_schedule);
         let current_iqamah_time = self
             .get_iqamah_time(current_prayer.into(), current_prayer_time)
             .unwrap_or_default();
 
         let next_prayer = today_schedule.next();
-        let next_prayer_time = today_schedule.time(next_prayer);
+        let next_prayer_time = time_for(next_prayer, today_schedule);
 
-        let tmrw_fajr_time = today_schedule.time(salah::Prayer::FajrTomorrow);
+        let tmrw_fajr_time = time_for(salah::Prayer::FajrTomorrow, today_schedule);
         if matches!(next_prayer.into(), PrayerLocal::Ignored) && now < tmrw_fajr_time {
             return ActionableEvent::WaitForPrayer(PrayerLocal::Fajr, tmrw_fajr_time);
         }
