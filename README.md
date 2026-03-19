@@ -116,6 +116,12 @@ long = 32.5498
 method = "Egyptian"
 madhab = "Shafi"
 
+[jumuah]
+# Minutes BEFORE Dhuhr on Fridays to send the "Get ready for Jumu'ah" warning (default: 45)
+early-warning = 45
+# Minutes to lock the screen after Dhuhr starts for the Khutbah and prayer (default: 45)
+lockdown-duration = 45
+
 [iqamah-offset]
 fajr = 20
 dhuhr = 15
