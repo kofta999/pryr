@@ -35,8 +35,11 @@ pub fn run_update() -> anyhow::Result<()> {
     let current_version = env!("CARGO_PKG_VERSION");
     let current_exe = std::env::current_exe()?;
     let install_dir = current_exe.parent().unwrap().to_path_buf();
+    let _temp_dir = TempDir::new_in(&install_dir)?;
     unsafe {
-        std::env::set_var("TMPDIR", TempDir::new_in(&install_dir)?.path());
+        std::env::set_var("TMPDIR", _temp_dir.path());
+        std::env::set_var("TMP", _temp_dir.path());
+        std::env::set_var("TEMP", _temp_dir.path());
     }
 
     let daemon_exe_name = if cfg!(windows) { "pryrd.exe" } else { "pryrd" };
@@ -71,7 +74,7 @@ pub fn run_update() -> anyhow::Result<()> {
 
     if status.updated() {
         println!(
-            "✨ Successfully updated pryr to version {}!",
+            "Successfully updated pryr to version {}!",
             status.version()
         );
     } else {
