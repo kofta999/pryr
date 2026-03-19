@@ -1,7 +1,7 @@
 use crate::prayers::{IqamahTime, PrayerTime};
 use chrono::{DateTime, Utc};
 use owo_colors::OwoColorize;
-use salah::Local;
+use salah::{Datelike, Local};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
@@ -23,6 +23,7 @@ pub struct PrayerTodaySchedule {
 impl Display for PrayerTodaySchedule {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let now = Utc::now();
+        let is_jumuah = Local::now().weekday() == chrono::Weekday::Fri;
 
         fn format_row(name: &str, entry: &PrayerEntry, now: DateTime<Utc>) -> String {
             let prayer_local = entry.prayer_time.with_timezone(&Local);
@@ -49,7 +50,15 @@ impl Display for PrayerTodaySchedule {
         )?;
         writeln!(f, "  {}", "─────────────────────────────────────".dimmed())?;
         writeln!(f, "{}", format_row("Fajr", &self.fajr, now))?;
-        writeln!(f, "{}", format_row("Dhuhr", &self.dhuhr, now))?;
+        writeln!(
+            f,
+            "{}",
+            format_row(
+                if is_jumuah { "Jumu'ah" } else { "Dhuhr" },
+                &self.dhuhr,
+                now
+            )
+        )?;
         writeln!(f, "{}", format_row("Asr", &self.asr, now))?;
         writeln!(f, "{}", format_row("Maghrib", &self.maghrib, now))?;
         writeln!(f, "{}", format_row("Isha", &self.isha, now))?;

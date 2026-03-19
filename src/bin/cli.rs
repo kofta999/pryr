@@ -22,15 +22,21 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Get the live countdown to the next prayer or lockdown event
     Status(OutputArgs),
+    /// View the full schedule for today (Adhan and Iqamah times)
     Schedule(OutputArgs),
+    /// Reload the configuration file dynamically without restarting the daemon
     ReloadConfig,
+    /// Set your location, calculation method, and Madhab
     Configure(ConfigureArgs),
+    /// Update pryr to the latest version
     Update,
 }
 
 #[derive(Args)]
 struct OutputArgs {
+    /// Output as raw JSON (useful for scripting and integrations)
     #[arg(long)]
     json: bool,
 }
@@ -38,10 +44,13 @@ struct OutputArgs {
 #[derive(Args)]
 #[group(required = true, multiple = true, id = "config_group")]
 struct ConfigureArgs {
+    /// Automatically fetch coordinates for a given city name
     #[arg(long, group = "config_group")]
     city: Option<String>,
+    /// Change the calculation method (e.g., egyptian, muslimworldleague)
     #[arg(long, group = "config_group")]
     method: Option<MethodLocal>,
+    /// Change the Madhab used for Asr calculation (shafi or hanafi)
     #[arg(long, group = "config_group")]
     madhab: Option<MadhabLocal>,
 }

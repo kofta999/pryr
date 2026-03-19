@@ -9,6 +9,8 @@ pub struct Config {
     pub location: Location,
     #[serde(rename = "prayer-config", default)]
     pub prayer_time: PrayerConfig,
+    #[serde(default)]
+    pub jumuah: JumuahConfig,
     #[serde(rename = "iqamah-offset", default)]
     pub iqamah_offset: IqamahOffset,
     #[serde(default)]
@@ -104,6 +106,23 @@ impl Default for LockdownConfig {
             warning_before_iqamah: 5,
             lock_before_iqamah: 2,
             unlock_after_iqamah: 10,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct JumuahConfig {
+    #[serde(rename = "early-warning")]
+    pub early_warning: u32,
+    #[serde(rename = "lockdown-duration")]
+    pub lockdown_duration: u32,
+}
+
+impl Default for JumuahConfig {
+    fn default() -> Self {
+        Self {
+            early_warning: 45,
+            lockdown_duration: 30,
         }
     }
 }

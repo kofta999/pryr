@@ -2,14 +2,15 @@
     all(not(debug_assertions), target_os = "windows"),
     windows_subsystem = "windows"
 )]
+use chrono::Datelike;
 use pryr::{
     config::Config,
     daemon::{DaemonSnapShot, DaemonState},
     ipc::{IpcListener, IpcRequest, IpcResponse},
-    prayers::{ActionableEvent, PrayerManager},
+    prayers::{ActionableEvent, PrayerLocal, PrayerManager},
     system::{self, get_config_path},
 };
-use salah::Utc;
+use salah::{Local, Utc};
 use std::time::Duration;
 use tokio::{
     fs::create_dir_all,
@@ -156,6 +157,16 @@ async fn daemon_loop(
                 next_event
             }
             DaemonState::WaitingForPrayer(prayer, time) => {
+                let local_now = Local::now();
+                let is_jumuah =
+                    local_now.weekday() == chrono::Weekday::Fri && prayer == PrayerLocal::Dhuhr;
+
+                let wake_time = if is_jumuah {
+                    time - Duration::from_mins((config.jumuah.early_warning).into())
+                } else {
+                    time
+                };
+
                 println!("[INFO] Next prayer is {prayer:?} at {time}");
                 println!("[INFO] Sleeping until prayer time");
 
@@ -166,23 +177,33 @@ async fn daemon_loop(
                         (prayer_manager, config) = system::reload();
                         DaemonState::Calculating
                     },
-                    _ = system::sleep_until_datetime(time) => {
+                    _ = system::sleep_until_datetime(wake_time) => {
                         println!("[INFO] Woke up for prayer: {prayer:?}");
 
-                        system::notify(
-                            &format!("Prayer {prayer} has started"),
-                            &format!(
-                                "Iqamah in {} minutes",
-                                prayer_manager
-                                    .time_left_for_iqamah(prayer, time)
-                                    .unwrap()
-                                    .num_minutes()
-                            ),
-                        )
-                        .await?;
+                        let next_event = if is_jumuah {
+                            system::notify(
+                                "Jumu'ah",
+                                &format!("Get ready for Jumu'ah! Lockdown in {} minutes", config.jumuah.early_warning),
+                            )
+                            .await?;
 
-                        let iqamah_time = prayer_manager.get_iqamah_time(prayer, time).unwrap();
-                        let next_event = DaemonState::IqamahWarning(prayer, iqamah_time);
+                            DaemonState::LockdownWarning(prayer, time)
+                        } else {
+                            system::notify(
+                                &format!("Prayer {prayer} has started"),
+                                &format!(
+                                    "Iqamah in {} minutes",
+                                    prayer_manager
+                                        .time_left_for_iqamah(prayer, time)
+                                        .unwrap()
+                                        .num_minutes()
+                                ),
+                            )
+                            .await?;
+
+                            let iqamah_time = prayer_manager.get_iqamah_time(prayer, time).unwrap();
+                            DaemonState::IqamahWarning(prayer, iqamah_time)
+                        };
 
                         watch_tx.send(DaemonSnapShot::new(
                             next_event,
@@ -240,20 +261,34 @@ async fn daemon_loop(
                     },
 
                     _ = system::sleep_until_datetime(lockdown_time) => {
+                        let local_now = Local::now();
+                        let is_jumuah = local_now.weekday() == chrono::Weekday::Fri && prayer == PrayerLocal::Dhuhr;
 
-                        system::notify(
-                            &format!("{prayer} Iqamah in {} minutes", config.lockdown.lock_before_iqamah),
-                            "Get ready! Lockdown in 30 seconds!",
-                        )
-                        .await?;
+                        if is_jumuah {
+                            system::notify(
+                                "Jumu'ah Khutbah is starting!",
+                                "Get ready! Lockdown in 30 seconds!",
+                            )
+                            .await?;
+                        } else {
+                            system::notify(
+                                &format!("{prayer} Iqamah in {} minutes", config.lockdown.lock_before_iqamah),
+                                "Get ready! Lockdown in 30 seconds!",
+                            )
+                            .await?;
+                        }
 
                         tokio::time::sleep(Duration::from_secs(30)).await;
                         println!("[INFO] Initiating lockdown for prayer: {prayer:?}");
 
-                        let unlock_time =
+                        let unlock_time = if is_jumuah {
+                            lockdown_time + Duration::from_secs((config.jumuah.lockdown_duration * 60).into())
+                        } else {
                             lockdown_time
-                            + Duration::from_mins(config.lockdown.lock_before_iqamah.into())
-                            + Duration::from_mins(config.lockdown.unlock_after_iqamah.into());
+                                + Duration::from_mins(config.lockdown.lock_before_iqamah.into())
+                                + Duration::from_mins(config.lockdown.unlock_after_iqamah.into())
+                        };
+
                         let next_event = DaemonState::Lockdown(unlock_time);
 
                         watch_tx.send(DaemonSnapShot::new(
