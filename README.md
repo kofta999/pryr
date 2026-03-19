@@ -42,6 +42,16 @@ irm https://raw.githubusercontent.com/kofta999/pryr/master/install.ps1 | iex
 
 ```
 
+#### Cargo
+
+You can also build and install `pryr` from source using `cargo`:
+
+```bash
+cargo install pryr
+```
+
+**Important Note for Cargo Installations:** The `cargo install` command only places the `pryr` and `pryrd` binaries into your `~/.cargo/bin` folder. It does **not** automatically set up the systemd service or Windows Task Scheduler to run the daemon (`pryrd`) in the background automatically. You will need to configure your OS to run `pryrd` on startup manually, or use the installation scripts above which handle the full setup automatically.
+
 ---
 
 ### 💻 Usage
