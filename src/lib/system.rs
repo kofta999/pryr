@@ -21,6 +21,22 @@ pub async fn notify(title: &str, body: &str) -> anyhow::Result<()> {
         .appname("pryr")
         .show()?;
 
+    #[cfg(target_os = "android")]
+    {
+        use tokio::process::Command;
+        Command::new("su")
+            .arg("-lp")
+            .arg("2000")
+            .arg("-c")
+            .arg(format!(
+                "cmd notification post -S bigtext -t '{}' pryr_tag '{}'",
+                title, body
+            ))
+            .spawn()?
+            .wait()
+            .await?;
+    }
+
     anyhow::Ok(())
 }
 
@@ -41,6 +57,23 @@ pub async fn lock_screen() -> anyhow::Result<()> {
 
         Shutdown::LockWorkStation()?;
     }
+
+    #[cfg(target_os = "android")]
+    {
+        use tokio::process::Command;
+        let output = Command::new("dumpsys").arg("power").output().await?;
+
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        if output_str.contains("mWakefulness=Awake") {
+            Command::new("input")
+                .arg("keyevent")
+                .arg("26")
+                .spawn()?
+                .wait()
+                .await?;
+        }
+    }
+
     anyhow::Ok(())
 }
 
@@ -62,6 +95,10 @@ pub fn reload() -> (PrayerManager, Config) {
 }
 
 pub fn get_config_path() -> Option<PathBuf> {
+    #[cfg(target_os = "android")]
+    return Some(PathBuf::from("/data/local/pryr/config.toml"));
+
+    #[cfg(not(target_os = "android"))]
     Some(
         BaseDirs::new()?
             .config_dir()

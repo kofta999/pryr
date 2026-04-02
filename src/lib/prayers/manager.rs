@@ -41,8 +41,7 @@ impl PrayerManager {
         let entry = |prayer: salah::Prayer| {
             let mut prayer_time = today_schedule.time(prayer);
             if matches!(prayer, salah::Prayer::Isha) && self.ramadan.enabled {
-                prayer_time =
-                    prayer_time + chrono::Duration::minutes(self.ramadan.isha_delay.into());
+                prayer_time += chrono::Duration::minutes(self.ramadan.isha_delay.into());
             }
 
             PrayerEntry {
@@ -68,7 +67,7 @@ impl PrayerManager {
         let time_for = |prayer: salah::Prayer, schedule: PrayerTimes| {
             let mut pt = schedule.time(prayer);
             if matches!(prayer, salah::Prayer::Isha) && self.ramadan.enabled {
-                pt = pt + chrono::Duration::minutes(self.ramadan.isha_delay.into());
+                pt += chrono::Duration::minutes(self.ramadan.isha_delay.into());
             }
             pt
         };
