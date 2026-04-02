@@ -71,5 +71,9 @@ pub fn get_config_path() -> Option<PathBuf> {
 }
 
 pub fn get_socket_path() -> Option<PathBuf> {
-    Some(BaseDirs::new()?.runtime_dir()?.join("pryr.sock"))
+    #[cfg(unix)]
+    return Some(BaseDirs::new()?.runtime_dir()?.join("pryr.sock"));
+
+    #[cfg(target_os = "android")]
+    return Some(PathBuf::from("/data/local/tmp/pryr.sock"));
 }
